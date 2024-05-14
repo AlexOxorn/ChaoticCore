@@ -1,0 +1,6 @@
+#ifndef CHAOTIC_CORE_LIBRARY_H
+#define CHAOTIC_CORE_LIBRARY_H
+
+void hello();
+
+#endif//CHAOTIC_CORE_LIBRARY_H
