@@ -26,6 +26,8 @@ match::~match() {
         delete pcard;
     for(auto& peffect : effects)
         delete peffect;
+    for(auto& peffect : groups)
+        delete peffect;
 }
 
 const card_data& match::read_card(uint32_t code) {
@@ -44,6 +46,35 @@ card* match::new_card(uint32_t code) {
     if(code)
         pcard->data = read_card(code);
     pcard->data.code = code;
-//    lua->register_card(pcard);
+    temp_register_card(pcard);
     return pcard;
+}
+
+
+void match::write_buffer(const void* data, size_t size) {
+    if(size == 0)
+        return;
+    const auto vec_size = buff.size();
+    buff.resize(vec_size + size);
+    std::memcpy(&buff[vec_size], data, size);
+}
+void match::generate_buffer() {
+    for (auto& message : messages) {
+        auto data = message.date();
+        auto size = (uint32_t)data.size();
+        auto index = (uint8_t) message.index();
+        write_buffer(&size, sizeof(size));
+        write_buffer(&index, sizeof(index));
+        write_buffer(data.c_str(), data.size());
+    }
+    messages.clear();
+}
+void match::set_response(const void* resp, uint32_t len) {
+    game_field->returns.data.resize(len);
+    if (len == 0)
+        return;
+    std::memcpy(game_field->returns.data.data(), resp, len);
+}
+void match::temp_register_card(card* pcard) {
+    pcard->cardid = game_field->infos.card_id++;
 }

@@ -31,6 +31,8 @@
   #include <cstdint>
   #include <type_traits>
   #include <exception>
+  #include <concepts>
+  #include <initializer_list>
 
 #else
 
@@ -45,6 +47,9 @@
 struct bad_bit : std::exception {};
 
 template <typename T>
+concept enum_class = std::is_enum<T>::value;
+
+template <typename T>
 constexpr auto BIT(T a) {
     if constexpr (std::is_integral_v<T> && !(std::is_enum_v<T>) ) {
         return 1ll << (a - 1);
@@ -55,56 +60,60 @@ constexpr auto BIT(T a) {
     }
 }
 
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr T operator~(T a) {
     return (T) ~(std::underlying_type_t<T>) a;
 }
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr T operator|(T a, T b) {
     return (T) ((std::underlying_type_t<T>) a | (std::underlying_type_t<T>) b);
 }
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr T operator&(T a, T b) {
     return (T) ((std::underlying_type_t<T>) a & (std::underlying_type_t<T>) b);
 }
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr T operator^(T a, T b) {
     return (T) ((std::underlying_type_t<T>) a ^ (std::underlying_type_t<T>) b);
 }
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr T& operator|=(T& a, T b) {
     return (T&) ((std::underlying_type_t<T>&) a |= (std::underlying_type_t<T>) b);
 }
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr T& operator&=(T& a, T b) {
     return (T&) ((std::underlying_type_t<T>&) a &= (std::underlying_type_t<T>) b);
 }
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T, std::integral S>
+constexpr T& operator&=(T& a, S b) {
+    return (T&) ((std::underlying_type_t<T>&) a &= b);
+}
+template <enum_class T>
 constexpr T& operator^=(T& a, T b) {
     return (T&) ((std::underlying_type_t<T>&) a ^= (std::underlying_type_t<T>) b);
 }
 
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
-constexpr bool operator!(T& a) {
-    return static_cast<bool>(a);
+template <enum_class T>
+constexpr bool operator!(const T a) {
+    return !static_cast<bool>(a);
 }
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
-constexpr std::underlying_type_t<T> operator+(T& a) {
+
+template <enum_class T>
+constexpr std::underlying_type_t<T> operator+(T a) {
     return static_cast<std::underlying_type_t<T>>(a);
 }
 
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr std::underlying_type_t<T> operator<<(long a, T b) {
     return a << (std::underlying_type_t<T>) b;
 }
 
-template <typename I, typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true,
-          std::enable_if_t<std::is_convertible_v<I, std::underlying_type_t<T>>, bool> = true>
+template <enum_class T, std::convertible_to<std::underlying_type_t<T>> I>
 constexpr inline bool is(I val, T flag) {
     return static_cast<std::underlying_type_t<T>>(val) & static_cast<std::underlying_type_t<T>>(flag);
 }
 
-template <typename T, std::enable_if_t<std::is_enum<T>::value, bool> = true>
+template <enum_class T>
 constexpr inline bool is(T val, T flag) {
     return static_cast<std::underlying_type_t<T>>(val) & static_cast<std::underlying_type_t<T>>(flag);
 }
@@ -115,33 +124,55 @@ long BIT(long a) {
     return 1 << (a - 1);
 }
 
+  #define is(X, Y) (X & Y)
+
 #endif
 
 ENUM PLAYER : uint8_t{ONE, TWO, NONE, ALL};
 
-ENUM LOCATION : uint16_t{NONE = 0,
-                         ATTACK_DECK = BIT(1),
-                         ATTACK_DISCARD = BIT(2),
-                         FIELD = BIT(3),
-                         HAND = BIT(4),
-                         GENERAL_DISCARD = BIT(5),
-                         REMOVED = BIT(6),
-                         BURST = BIT(7),
-                         ACTIVE_LOCATION = BIT(8),
-                         LOCATION_DECK = BIT(9),
-                         GLOBAL = FIELD | GENERAL_DISCARD | LOCATION_DECK};
+inline PLAYER opp(PLAYER playerid) {
+    switch (playerid) {
+        case PLAYER::ONE: return PLAYER::TWO;
+        case PLAYER::TWO: return PLAYER::ONE;
+        default: return playerid;
+    }
+}
+
+ENUM LOCATION : uint32_t{
+                        NONE = 0,
+                        ATTACK_DECK = BIT(1),
+                        ATTACK_DISCARD = BIT(2),
+                        FIELD = BIT(3),
+                        MUGIC_HAND = BIT(4),
+                        ATTACK_HAND = BIT(5),
+                        GENERAL_DISCARD = BIT(6),
+                        REMOVED = BIT(7),
+                        BURST = BIT(8),
+                        ACTIVE_LOCATION = BIT(9),
+                        LOCATION_DECK = BIT(10),
+                        GLOBAL = FIELD | GENERAL_DISCARD | LOCATION_DECK,
+                        HAND = ATTACK_HAND | MUGIC_HAND,
+                        DECK = ATTACK_DECK | LOCATION_DECK,
+                        GRAVE = ATTACK_DISCARD | GENERAL_DISCARD,
+                        VECTOR_AREA = DECK | GRAVE | HAND | REMOVED,
+                        BOTTOM_ATTACK_DECK = ATTACK_DECK | BIT(17),
+                        SHUFFLE_ATTACK_DECK = ATTACK_DECK | BIT(18),
+                        BOTTOM_LOCATION_DECK = LOCATION_DECK | BIT(17),
+                        SHUFFLE_LOCATION_DECK = LOCATION_DECK | BIT(18),
+                };
 
 ENUM POSITION : uint8_t{
+                        NONE = 0,
                         FACE_UP = BIT(1),
                         FACE_DOWN = BIT(2),
                 };
 
 ENUM SUPERTYPE : uint8_t{
-                         CREATURE = BIT(1),
-                         BATTLE_GEAR = BIT(2),
-                         MUGIC = BIT(3),
-                         LOCATION = BIT(4),
-                         ATTACK = BIT(5),
+                         CREATURE,
+                         BATTLE_GEAR,
+                         MUGIC,
+                         LOCATION,
+                         ATTACK,
                  };
 
 ENUM SUBTYPE : uint64_t{
@@ -204,14 +235,49 @@ ENUM OPTION : uint8_t{MINION_TRIBAL_MUGIC = BIT(1),
                       MINION_BOTH_ABILITIES = BIT(6),
                       SECOND_PLAYER_ATTACK_MULLIGAN = BIT(7)};
 
+ENUM RESET : uint32_t{
+                     EVENT = BIT(13),
+                     CARD = BIT(14),
+                     COPY = BIT(15),
+                     CODE = BIT(16),
+
+                     DISABLE = BIT(17),
+                     TURN_SET = BIT(18),
+                     TO_GRAVE = BIT(19),
+                     REMOVE = BIT(20),
+                     TO_HAND = BIT(21),
+                     TO_DECK = BIT(22),
+                     LEAVE = BIT(23),
+                     TO_FIELD = BIT(24),
+                     CONTROL = BIT(25),
+
+                     BASIC = TO_GRAVE | REMOVE | TO_HAND | TO_DECK | LEAVE | TO_FIELD,
+
+                     SELF_TURN = BIT(29),
+                     OPPO_TURN = BIT(20),
+                     PHASE = BIT(31),
+                     CHAIN = BIT(32),
+             };
+
 #define DECK_TOP     0
 #define DECK_BOTTOM  1
 #define DECK_SHUFFLE 2
 
-typedef struct {
-    uint32_t horizontal;
-    uint32_t vertical;
-    uint32_t sequence;
-} sequence_type;
+struct sequence_type {
+    union {
+        struct {
+            uint32_t horizontal;
+            uint32_t vertical;
+        };
+        uint32_t index;
+    };
+    sequence_type() = default;
+    sequence_type(uint32_t x) : index{x} {}
+    sequence_type(uint32_t x, uint32_t y) : horizontal{x}, vertical{y} {}
+    sequence_type(std::initializer_list<uint32_t> x) : horizontal{*x.begin()}, vertical{*(x.begin() + 1)} {}
+    bool operator==(const sequence_type& other) const {
+        return (horizontal == other.horizontal && vertical == other.vertical) or (index == other.index);
+    };
+};
 
 #endif // CHAOTIC_CORE_COMMON_H

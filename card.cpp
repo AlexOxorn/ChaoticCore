@@ -3,12 +3,60 @@
 //
 
 #include "card.h"
+#include "match.h"
 #include <cstdio>
+
 card::card(match* pm) : lua_obj_helper(pm) {
     temp.set0xff();
     current.controller = PLAYER::NONE;
 }
-void card::apply_field_effect() {}
+void card::cancel_field_effect() {}
+void card::reset(RESET id, RESET type) {
+    fprintf(stderr, "card::reset unimplemented\n");
+    using enum RESET;
+    if (!is(type, EVENT | PHASE | CODE | COPY | CARD))
+        return;
+    for (auto rit = relations.begin(); rit != relations.end();) {
+        auto rrm = rit++;
+        if (is(rrm->second & 0xffffff00, id)) {
+            relations.erase(rrm);
+        }
+        if (is(id, TO_DECK | TO_HAND | TO_GRAVE | REMOVE)) {
+            clear_related_effect();
+        }
+    }
+}
+void card::clear_related_effect() {
+    fprintf(stderr, "card::clear_related_effect unimplemented\n");
+}
+void card::refresh_negated_status() {
+    fprintf(stderr, "card::refresh_negated_status unimplemented\n");
+}
+void card::equip(card* target, bool send_msg) {
+    if (current.equipped_creature)
+        return;
+    target->previous.battlegear = nullptr;
+    target->current.battlegear = this;
+    previous.equipped_creature = current.equipped_creature;
+    current.equipped_creature = target;
+    // NEGATED CHECK LIST
+}
+void card::unequip() {
+    if (!current.equipped_creature)
+        return;
+    // NEGATED CHECK LIST
+    current.equipped_creature->previous.battlegear = current.equipped_creature->current.battlegear;
+    current.equipped_creature->current.battlegear = nullptr;
+    previous.equipped_creature = current.equipped_creature;
+    current.equipped_creature = nullptr;
+}
+void card::clear_card_target() {
+    fprintf(stderr, "card::clear_card_target unimplemented\n");
+}
+effect* card::is_affected_by_effect(EFFECT) {
+    fprintf(stderr, "card::is_affected_by_effect unimplemented\n");
+    return nullptr;
+}
 
 template<typename T>
 static constexpr void set_max_property_val(T& val) {
@@ -18,7 +66,7 @@ void card_state::set0xff() {
     set_max_property_val(subtypes);
     set_max_property_val(name);
     set_max_property_val(sub_name);
-    set_max_property_val(sequence.sequence);
+    set_max_property_val(sequence.index);
     set_max_property_val(sequence.horizontal);
     set_max_property_val(sequence.vertical);
     set_max_property_val(moved_this_turn);

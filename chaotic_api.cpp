@@ -38,22 +38,18 @@ CHAOTICAPI int CHAOTIC_CreateDuel(CHAOTIC_Duel* out_chaotic_duel, CHAOTIC_DuelOp
 }
 
 CHAOTICAPI void CHAOTIC_DestroyDuel(CHAOTIC_Duel chaotic_duel) {
-    printf("GET DESTROY DUEL HI\n");
     if (chaotic_duel)
         delete static_cast<match*>(chaotic_duel);
 }
 
 CHAOTICAPI void CHAOTIC_DuelNewCard(CHAOTIC_Duel chaotic_duel, CHAOTIC_NewCardInfo info) {
     auto* pduel = static_cast<match*>(chaotic_duel);
-    printf("GET NEW CARD %d\n", info.code);
     auto& game_field = *(pduel->game_field);
     if (game_field.is_location_usable(info.supertype, info.controller, info.location, info.sequence)) {
         card* pcard = pduel->new_card(info.code);
         pcard->owner = info.controller;
         pcard->current.position = info.position;
         game_field.add_card(info.controller, pcard, info.location, info.sequence);
-        printf("creature %p and %p\n", game_field.board[0].creature1, game_field.board[0].creature2);
-        printf("creature %p and %p\n", game_field.board[1].creature1, game_field.board[1].creature2);
         /*
          * Trigger field effects???
          */
@@ -61,7 +57,30 @@ CHAOTICAPI void CHAOTIC_DuelNewCard(CHAOTIC_Duel chaotic_duel, CHAOTIC_NewCardIn
 }
 
 CHAOTICAPI void CHAOTIC_StartDuel(CHAOTIC_Duel chaotic_duel) {
-    printf("GET START DUEL HA\n");
     auto* pduel = static_cast<match*>(chaotic_duel);
-    //    pduel->game_field->emplace_process<Processors::Startup>();
+    pduel->game_field->emplace_process<processors::Startup>();
+}
+
+CHAOTICAPI int CHAOTIC_DuelProcess(CHAOTIC_Duel chaotic_duel) {
+    auto* pduel = static_cast<match*>(chaotic_duel);
+    pduel->buff.clear();
+    auto flag = CHAOTIC_DUEL_STATUS_END;
+    do {
+        flag = pduel->game_field->process();
+        pduel->generate_buffer();
+    } while(pduel->buff.empty() && flag == CHAOTIC_DUEL_STATUS_CONTINUE);
+    return flag;
+}
+
+CHAOTICAPI void* CHAOTIC_DuelGetMessage(CHAOTIC_Duel chaotic_duel, uint32_t* length) {
+    auto* pmatch = static_cast<match*>(chaotic_duel);
+    pmatch->generate_buffer();
+    if(length)
+        *length = static_cast<uint32_t>(pmatch->buff.size());
+    return pmatch->buff.data();
+}
+
+CHAOTICAPI void CHAOTIC_DuelSetResponse(CHAOTIC_Duel chaotic_duel, const void* buffer, uint32_t length) {
+    auto* p_match = static_cast<match*>(chaotic_duel);
+    p_match->set_response(buffer, length);
 }

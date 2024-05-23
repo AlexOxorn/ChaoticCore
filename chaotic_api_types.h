@@ -22,11 +22,11 @@ typedef struct CHAOTIC_CardData {
     uint32_t wisdom;
     uint32_t speed;
     uint32_t energy;
-    uint8_t fire;
-    uint8_t air;
-    uint8_t earth;
-    uint8_t water;
-    uint8_t mugic_ability;
+    int8_t fire;
+    int8_t air;
+    int8_t earth;
+    int8_t water;
+    int8_t mugic_ability;
     uint8_t loyal;
     uint8_t limited;
     uint8_t legendary;
@@ -64,5 +64,11 @@ typedef struct CHAOTIC_DuelOptions {
     CHAOTIC_DataReaderDone cardReaderDone;
     void* cardReaderDonePayload;
 } CHAOTIC_DuelOptions;
+
+typedef enum CHAOTIC_DuelStatus {
+    CHAOTIC_DUEL_STATUS_END,
+    CHAOTIC_DUEL_STATUS_AWAITING,
+    CHAOTIC_DUEL_STATUS_CONTINUE
+}CHAOTIC_DuelStatus;
 
 #endif // CHAOTIC_CORE_CHAOTC_API_TYPES_H

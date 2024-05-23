@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+message MSG_index {
+  uint32 index = 1;
+}
+
+message MSG_coordinate {
+  uint32 horizontal = 1;
+  uint32 vertical = 2;
+}
+
+message MSG_sequence {
+  oneof seqtype {
+      MSG_index index = 1;
+      MSG_coordinate coord = 2;
+  }
+}
+
+message MSG_locinfo {
+  uint32 controller = 1;
+  uint32 location = 2;
+  MSG_sequence sequence = 3;
+  uint32 position = 4;
+}
+
+message MSG_ShuffleAttackDeck {
+  int32 playerid = 1;
+};
+message MSG_ShuffleLocationDeck {
+  int32 playerid = 1;
+};
+
+message MSG_ShuffleAttackHand {
+  int32 playerid = 1;
+  repeated uint32 codes = 2;
+}
+
+message MSG_ShuffleMugicHand {
+  int32 playerid = 1;
+  repeated uint32 codes = 2;
+}
+
+message MSG_Move {
+  uint32 code = 1;
+  MSG_locinfo previous_location = 2;
+  MSG_locinfo new_location = 3;
+  uint32 reason = 4;
+}
+
+message MSG_Draw {
+  uint32 playerid = 1;
+  uint32 code = 2;
+  uint32 position = 3;
+}

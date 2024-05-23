@@ -7,11 +7,16 @@
 
 #include "common.h"
 #include "lua_obj.h"
+#include "stdio.h"
 #include <array>
 #include <cstdint>
 #include <map>
 #include <set>
 #include "chaotic_api_types.h"
+#include "effect_constants.h"
+#include "effect.h"
+#include "internal_common.h"
+#include <unordered_map>
 
 /*
  * Database Column Brainstorm
@@ -77,25 +82,31 @@ struct card_data {
 };
 
 struct sendto_params {
-    void set(PLAYER p, POSITION pos, LOCATION loc, uint32_t ind1 = 0, uint32_t ind2 = 0) {
+    void set(PLAYER p, POSITION pos, LOCATION loc) {
         playerid = p;
         position = pos;
         location = loc;
-        index1 = ind1;
-        index2 = ind2;
+        sequence = {};
+    }
+    void set(PLAYER p, POSITION pos, LOCATION loc, uint32_t ind1, uint32_t ind2) {
+        set(p, pos, loc);
+        sequence.horizontal = ind1;
+        sequence.vertical = ind2;
+    }
+    void set(PLAYER p, POSITION pos, LOCATION loc, uint32_t seq) {
+        set(p, pos, loc);
+        sequence.index = seq;
     }
     void clear() {
         playerid = PLAYER::NONE;
         position = POSITION::FACE_DOWN;
         location = LOCATION::NONE;
-        index1 = 0;
-        index2 = 0;
+        sequence = {};
     }
     PLAYER playerid{};
     POSITION position{};
     LOCATION location{};
-    uint32_t index1{};
-    uint32_t index2{};
+    sequence_type sequence{};
 };
 
 struct card_state {
@@ -114,6 +125,7 @@ struct card_state {
     disciplines stats{};
     element_values elements{};
     int8_t mugic_ability{};
+    int8_t mugic_counters{};
     TRIBE tribes{};
     TRIBE castable_mugic{};
     SUPERTYPE card_type{};
@@ -121,16 +133,20 @@ struct card_state {
     LOCATION location{};
     POSITION position{};
     PLAYER controller{};
-    enum BRAIN_WASH : uint8_t {
-        NORMAL,
-        ASSUME_NO_BRAINWASH,
-        ASSUME_BRAINWASHED
-    } pseudo_brainwash;
+    union {
+        card* equipped_creature;
+        card* battlegear;
+    };
+    enum BRAIN_WASH : uint8_t { NORMAL, ASSUME_NO_BRAINWASH, ASSUME_BRAINWASHED } pseudo_brainwash;
     bool won_initiative{};
     bool won_stat_check{};
     bool won_challenge{};
     bool won_stat_fail{};
     std::map<uint32_t, uint64_t> assume;
+
+    REASON reason = REASON::NONE;
+    effect* reason_effect{};
+    PLAYER reason_player = PLAYER::NONE;
 
     void set0xff();
 };
@@ -158,13 +174,13 @@ struct effect;
 struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     using counter_map = std::map<uint16_t, std::array<uint16_t, 2>>;
     using effect_container = std::multimap<uint32_t, effect*>;
-    using card_set = std::set<card*, card_sort>;
+    using relation_map = std::unordered_map<card*, uint32_t>;
+
     uint32_t cardid{};
     card_data data{};
     card_state previous{};
     card_state temp{};
     card_state current{};
-    card* battlegear{};
     PLAYER owner{PLAYER::NONE};
     std::map<uint32_t, uint32_t> assume{};
     counter_map counters;
@@ -173,21 +189,65 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     effect_container battlegear_effect;
     effect_container target_effect;
     sendto_params sendto_param{};
+    relation_map relations;
 
     uint32_t field_id{};
     uint32_t field_id_r{};
     uint16_t turn_id{};
 
+    /*
+3 1 0 0
+3 1 0 0
+2 2 0
+2 2 0
+2 2 0
+*/
+
+    loc_info get_location_info() { return {current.controller, current.location, current.sequence, current.position}; };
+
+    [[nodiscard]] SUBTYPE get_subtypes() const { return current.subtypes; };
+    [[nodiscard]] int32_t get_energy() const { return current.energy; };
+    [[nodiscard]] int32_t damage() const { return current.damage; };
+    [[nodiscard]] int16_t get_courage() const { return current.stats.courage; };
+    [[nodiscard]] int16_t get_power() const { return current.stats.power; };
+    [[nodiscard]] int16_t get_wisdom() const { return current.stats.wisdom; };
+    [[nodiscard]] int16_t get_speed() const { return current.stats.speed; };
+    [[nodiscard]] disciplines get_stats() const { return {get_courage(), get_power(), get_wisdom(), get_speed()}; }
+    [[nodiscard]] int8_t get_fire() const { return current.elements.fire; };
+    [[nodiscard]] int8_t get_air() const { return current.elements.air; };
+    [[nodiscard]] int8_t get_earth() const { return current.elements.earth; };
+    [[nodiscard]] int8_t get_water() const { return current.elements.water; };
+    [[nodiscard]] element_values get_elements() const { return {get_fire(), get_air(), get_earth(), get_water()}; }
+    [[nodiscard]] int8_t get_mugic_counters() const { return current.mugic_counters; };
+    [[nodiscard]] TRIBE get_tribes() const { return current.tribes; };
+    [[nodiscard]] TRIBE get_castable_mugic() const { return current.castable_mugic; };
+
     card(match* pm);
 
-    void apply_field_effect();
+    void apply_field_effect() { fprintf(stderr, "apply_field_effect unimplemented\n"); };
+    void enable_field_effect(bool enabled = true) { fprintf(stderr, "enable_field_effect unimplemented\n"); };
+    LOCATION leave_field_redirect(REASON reason) {
+        fprintf(stderr, "enable_field_effect unimplemented\n");
+        return {};
+    };
+    LOCATION destination_redirect(LOCATION dest, REASON reason) {
+        fprintf(stderr, "destination_redirect unimplemented\n");
+        return {};
+    };
+    void cancel_field_effect();
+
+    void reset(RESET id, RESET type);
+    void clear_related_effect();
+    void refresh_negated_status();
+    void equip(card* target, bool send_msg);
+    void unequip();
+    void clear_card_target();
+    effect* is_affected_by_effect(EFFECT);
 };
 
 struct card_sort {
-    bool operator()(const card* c1, const card* c2) const {
-        return c1->cardid < c2->cardid;
-    };
+    bool operator()(const card* c1, const card* c2) const { return c1->cardid < c2->cardid; };
 };
+using card_set = std::set<card*, card_sort>;
 
-
-#endif//CHAOTIC_CORE_CARD_H
+#endif // CHAOTIC_CORE_CARD_H
