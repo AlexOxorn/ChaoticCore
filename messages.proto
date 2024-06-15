@@ -1,9 +1,5 @@
 syntax = "proto3";
 
-message MSG_index {
-  uint32 index = 1;
-}
-
 message MSG_coordinate {
   uint32 horizontal = 1;
   uint32 vertical = 2;
@@ -11,8 +7,8 @@ message MSG_coordinate {
 
 message MSG_sequence {
   oneof seqtype {
-      MSG_index index = 1;
-      MSG_coordinate coord = 2;
+    uint32 index = 1;
+    MSG_coordinate coord = 2;
   }
 }
 
@@ -51,4 +47,82 @@ message MSG_Draw {
   uint32 playerid = 1;
   uint32 code = 2;
   uint32 position = 3;
+}
+
+message MSG_NewTurn {
+  uint32 playerid = 1;
+}
+
+message MSG_NewPhase {
+  uint32 phase = 1;
+}
+
+message MSG_ActivateLocation {
+  uint32 player = 1;
+  uint32  code = 2;
+  MSG_locinfo previous_location = 3;
+}
+
+message MSG_move_options {
+  uint32 code = 1;
+  MSG_coordinate source = 2;
+  repeated MSG_coordinate destinations = 3;
+}
+
+message MSG_SelectMove {
+  uint32 player = 1;
+  uint32 can_end_turn = 2;
+  repeated MSG_move_options options = 3;
+}
+
+message MSG_Retry {}
+
+message MSG_CreatureMove {
+  uint32 code = 1;
+  MSG_locinfo previous_location = 2;
+  MSG_locinfo new_location = 3;
+  uint32 combat = 4;
+}
+
+message MSG_CombatStart {
+  uint32 playerid = 1;
+  uint32 code1 = 2;
+  uint32 code2 = 3;
+  MSG_coordinate battle_location = 4;
+}
+
+message MSG_SelectAttackCard {
+  message attack_card {
+    uint32 code = 1;
+    uint32 index = 2;
+  }
+
+  int32 player = 1;
+  repeated attack_card cards = 2;
+}
+
+message MSG_Damage {
+  uint32 code = 1;
+  MSG_locinfo loc_info = 2;
+  uint32 amount = 3;
+  uint32 reason = 4;
+}
+
+message MSG_Recover {
+  uint32 code = 1;
+  MSG_locinfo loc_info = 2;
+  uint32 amount = 3;
+  uint32 reason = 4;
+}
+
+message MSG_WonInitiative {
+  uint32 playerid = 1;
+}
+message MSG_StrikerChange {
+  uint32 playerid = 1;
+}
+message MSG_CombatEnd {
+  uint32 winner = 1;
+  uint32 code1 = 2;
+  uint32 code2 = 3;
 }

@@ -45,12 +45,16 @@ add_library(
         common.h
         chaotic_api_types.h
         operations.cpp
+        playerop.cpp
+        processor.cpp
         protocol_buffers/messages.pb.cc
-        compile_test.cpp
 )
 
 
 add_executable(chaotic_core_test test/test.cpp)
+
+add_library(pyChaotic SHARED python_modules/py_ChaoticCore.cpp)
+
 find_package(
         SQLite3
         REQUIRED
@@ -65,9 +69,12 @@ include(CMakePrintHelpers)
 
 
 find_package(Protobuf REQUIRED)
+find_package(Python3 COMPONENTS Interpreter Development)
 
-
-cmake_print_variables(Protobuf_LIBRARIES)
+if (Python3_FOUND)
+    include_directories(${Python3_INCLUDE_DIRS})
+    target_link_libraries(pyChaotic ${Python3_LIBRARIES} chaotic_core)
+endif (Python3_FOUND)
 
 if (Protobuf_FOUND)
     include_directories(${Protobuf_INCLUDE_DIRS})

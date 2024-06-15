@@ -30,9 +30,9 @@ class lua_obj {
 public:
     LuaParamType lua_type;
     int32_t ref_handle;
-    match* pduel{ nullptr };
+    match* pmatch{ nullptr };
 protected:
-    lua_obj(LuaParamType _lua_type, match* _pduel) :lua_type(_lua_type), pduel(_pduel) {};
+    lua_obj(LuaParamType _lua_type, match* _pmatch) :lua_type(_lua_type), pmatch(_pmatch) {};
 };
 
 template<LuaParamType _Type>
@@ -47,7 +47,7 @@ class lua_obj_helper : public lua_obj {
                     _Type == PARAM_TYPE_DELETED,
                   "Invalid parameter type");
 public:
-    lua_obj_helper(match* pduel) : lua_obj(_Type, pduel) {};
+    lua_obj_helper(match* pmatch) : lua_obj(_Type, pmatch) {};
 };
 
 

@@ -130,6 +130,14 @@ long BIT(long a) {
 
 ENUM PLAYER : uint8_t{ONE, TWO, NONE, ALL};
 
+template<enum_class T, typename ... ARGS>
+constexpr inline bool any_of(T val, ARGS... flag) requires (std::is_same_v<T, ARGS> && ...) {
+    return ((val == flag) || ...);
+    return false;
+}
+
+
+
 inline PLAYER opp(PLAYER playerid) {
     switch (playerid) {
         case PLAYER::ONE: return PLAYER::TWO;
@@ -160,6 +168,10 @@ ENUM LOCATION : uint32_t{
                         BOTTOM_LOCATION_DECK = LOCATION_DECK | BIT(17),
                         SHUFFLE_LOCATION_DECK = LOCATION_DECK | BIT(18),
                 };
+
+ENUM STATUS {
+        DESTROY_CONFIRMED = BIT(1)
+};
 
 ENUM POSITION : uint8_t{
                         NONE = 0,
@@ -211,20 +223,17 @@ ENUM STATS : uint8_t{
                      SPEED = BIT(4),
              };
 
-ENUM TURN_PHASE : uint8_t{
-                          LOCATION_STEP = BIT(1),
-                          ACTION_STEP = BIT(2),
-                          RECOVERY_STEP = BIT(3),
-                  };
-
-ENUM COMBAT_PHASE : uint8_t{
-                            NONE = 0,
-                            ENGAGEMENT = BIT(1),
-                            REVEAL_BATTLE = BIT(2),
-                            BEGINNING_OF_COMBAT = BIT(3),
-                            INITIATIVE = BIT(4),
-                            STRIKE_PHASE = BIT(5),
-                    };
+ENUM PHASE : uint8_t{
+                     NONE = 0,
+                     LOCATION_STEP = BIT(1),
+                     ACTION_STEP = BIT(2),
+                     RECOVERY_STEP = BIT(3),
+                     ENGAGEMENT = BIT(4),
+                     REVEAL_BATTLE = BIT(5),
+                     BEGINNING_OF_COMBAT = BIT(6),
+                     INITIATIVE = BIT(7),
+                     STRIKE_PHASE = BIT(8),
+             };
 
 ENUM ASSUME : uint32_t{NAME, SUPERTYPE, SUBTYPE, TRIBE, FLAGS, FIRE, WIND, EARTH, WATER, COURAGE, POWER, WISDOM, SPEED};
 
@@ -263,21 +272,5 @@ ENUM RESET : uint32_t{
 #define DECK_BOTTOM  1
 #define DECK_SHUFFLE 2
 
-struct sequence_type {
-    union {
-        struct {
-            uint32_t horizontal;
-            uint32_t vertical;
-        };
-        uint32_t index;
-    };
-    sequence_type() = default;
-    sequence_type(uint32_t x) : index{x} {}
-    sequence_type(uint32_t x, uint32_t y) : horizontal{x}, vertical{y} {}
-    sequence_type(std::initializer_list<uint32_t> x) : horizontal{*x.begin()}, vertical{*(x.begin() + 1)} {}
-    bool operator==(const sequence_type& other) const {
-        return (horizontal == other.horizontal && vertical == other.vertical) or (index == other.index);
-    };
-};
 
 #endif // CHAOTIC_CORE_COMMON_H

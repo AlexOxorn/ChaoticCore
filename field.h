@@ -12,10 +12,12 @@
 #include <array>
 #include <cstring>
 #include <cstdint>
+#include <cassert>
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
 #include <optional>
+#include <algorithm>
 
 class match;
 class group;
@@ -26,12 +28,14 @@ struct battle_board_location {
     card* mirage = nullptr;
     bool blocked = false;
 
-    int occupied() {
+    [[nodiscard]] int occupied() const {
         return (int) std::count_if(creatures.begin(), creatures.end(), [](card* a) { return a; });
     }
 };
 
 using battle_board = std::vector<battle_board_location>;
+
+using movable_map = std::vector<std::pair<card*, std::vector<int32_t>>>;
 
 using coordinates = std::pair<uint32_t, uint32_t>;
 
@@ -109,44 +113,73 @@ struct player_info {
     uint32_t attack_hand_count = 2;
 };
 
-using processors::processor_unit;
+using procs::processor_unit;
 
 struct processor {
     using processor_list = std::deque<processor_unit>;
+    using effect_count_map = std::unordered_map<uint64_t, uint32_t>;
     processor_list units;
     processor_list subunits;
 
     card_set operated_set;
+    event_list used_event;
+    std::set<effect*> reset_effects;
 
+    // Boolean Checks
+    bool re_adjust;
+    bool phase_action;
+    bool end_combat;
+    PLAYER combat_winner;
     bool shuffle_check_disabled;
     bool shuffle_attack_hand_check[2];
     bool shuffle_mugic_hand_check[2];
     bool shuffle_attack_deck_check[2];
     bool shuffle_location_deck_check[2];
 
-    bool can_engage;
+    // EFFECTS
+    effect_count_map effect_count_code;
+    effect_count_map effect_count_code_duel;
+    effect_count_map effect_count_code_chain;
+    std::unordered_map<card*, uint32_t> readjust_map;
+    burst_array new_triggers;
     burst_array current_burst;
     card_set just_sent_cards;
+
+    // Action Step State
+    int32_t turn_engage_count;
+    int32_t turn_move_count;
+    bool must_move;
+    movable_map movable_cards;
+    card_vector valid_attack_cards;
+    battle_board_location* battle_position = nullptr;
 };
 
 struct field_info {
-    uint32_t event_id{1};
+    uint64_t event_id{1};
     uint32_t field_id{1};
     uint16_t copy_id{1};
     int16_t turn_id{0};
     int16_t turn_id_by_player[2]{0, 0};
     uint32_t card_id{1};
-    TURN_PHASE turn_phase{0};
-    COMBAT_PHASE combat_phase{0};
+    PHASE turn_phase{0};
+    PHASE combat_phase{0};
     uint8_t turn_player{0};
+    uint8_t striking_player{0};
     uint8_t priorities[2]{0, 0};
+
+    uint8_t turns_since_no_damage;
+    uint8_t turns_since_no_combat;
     bool can_shuffle{true};
 };
+
+template <typename T>
+concept trivially_copyable = std::is_trivially_copyable_v<std::remove_reference_t<T>>;
 
 class progressive_buffer {
 public:
     std::vector<uint8_t> data;
     void clear() { data.clear(); }
+
     template <class T>
     T at(const size_t pos) const {
         constexpr static auto valsize = sizeof(T);
@@ -157,14 +190,39 @@ public:
         std::memcpy(&ret, data.data() + pos * valsize, sizeof(T));
         return ret;
     }
+
+    template <trivially_copyable T>
+    T get() {
+        return at<T>(0);
+    }
+
+    template <trivially_copyable... T>
+        requires(sizeof...(T) > 1)
+    std::tuple<T...> get() {
+        int index = 0;
+        std::tuple<T...> ret{at<T>(index++)...};
+        return ret;
+    }
+
     template <class T>
-    void set(const size_t pos, T val) {
+    void set(const size_t pos, T&& val) {
         constexpr static auto valsize = sizeof(T);
         size_t size = (pos + 1) * valsize;
         if (data.size() < size)
             data.resize(size);
         std::memcpy(data.data() + pos * valsize, &val, sizeof(T));
     }
+
+    template <trivially_copyable T>
+    void set(T&& val) {
+        set<T>(0, std::forward<T>(val));
+    }
+    template <trivially_copyable... T>
+    void set(T&&... val) {
+        int index = 0;
+        (set<T>(index++, std::forward<T>(val)), ...);
+    }
+
     [[nodiscard]] bool bitGet(const size_t pos) const {
         size_t real_pos = pos / 8u;
         uint32_t index = pos % 8u;
@@ -192,11 +250,13 @@ class field {
 public:
     match* pmatch;
     std::array<player_info, 2> player;
-    uint32_t board_size{3};
+    int32_t board_size{3};
     battle_board board;
+    card* active_location = nullptr;
     card* temp_card{};
     processor core{};
     field_info infos;
+    int32_t turns_since_battle{};
 
     progressive_buffer returns;
 
@@ -210,8 +270,18 @@ public:
     void refresh_attack_deck(PLAYER playerid);
     void shuffle(PLAYER playerid, LOCATION location);
 
+    void reveal_location(PLAYER playerid, effect* reason_effect = nullptr, REASON reason = REASON::RULE,
+                         PLAYER reason_player = PLAYER::NONE);
+    void set_mirage(card* pcard, effect* reason_effect = nullptr, REASON reason = REASON::RULE,
+                    PLAYER reason_player = PLAYER::NONE);
+
+    int32_t index_from(sequence_type sequence) const {
+        return sequence.vertical * 2 * board_size + sequence.horizontal;
+    }
+    sequence_type coord_from(int32_t index) const { return {index % (2 * board_size), index / (2 * board_size)}; }
+
     battle_board_location& get_board_from_sequence(sequence_type sequence) {
-        auto index = sequence.vertical * 2 * board_size + sequence.horizontal;
+        auto index = index_from(sequence);
         if (index >= board.size())
             return board.back();
         return board[index];
@@ -223,16 +293,18 @@ public:
         uint16_t step;
     };
     template <typename T, typename... Args>
+        requires std::constructible_from<T, uint16_t, Args...> && std::constructible_from<processor_unit, T>
     constexpr inline void emplace_process(Step step, Args&&... args) {
-        processors::emplace_variant<T>(core.subunits, step.step, std::forward<Args>(args)...);
+        procs::emplace_variant<T>(core.subunits, step.step, std::forward<Args>(args)...);
     }
     template <typename T, typename... Args>
+        requires std::constructible_from<T, uint16_t, Args...> && std::constructible_from<processor_unit, T>
     constexpr inline void emplace_process(Args&&... args) {
         emplace_process<T>(Step{0}, std::forward<Args>(args)...);
     }
 
-    bool raise_event(card* event_card, EVENT event_code, effect* reason_effect, REASON reason, PLAYER event_player,
-                     uint32_t event_value);
+    bool raise_event(card* event_card, EVENT event_code, effect* reason_effect, REASON reason, PLAYER reason_player,
+                     PLAYER event_player, uint32_t event_value);
     bool raise_event(card_set event_cards, EVENT event_code, effect* reason_effect, REASON reason, PLAYER reason_player,
                      PLAYER event_player, uint32_t event_value);
     bool raise_single_event(card* trigger_card, card_set* event_cards, EVENT event_code, effect* reason_effect,
@@ -240,10 +312,32 @@ public:
     int32_t process_instant_event();
     int32_t process_single_event();
 
-    bool process(processors::Startup& arg);
-    bool process(processors::Draw& arg);
-    bool process(processors::RevealBattlegear&);
-    bool process(processors::Debug&);
+    // PROCESSES
+    bool process(procs::Startup& arg);
+    bool process(procs::Turn& arg);
+    bool process(procs::MoveCommand& arg);
+    bool process(procs::Combat& arg);
+    bool process(procs::Adjust& arg);
+    bool process(procs::PhaseEvent& arg);
+    bool process(procs::PointEvent& arg);
+    bool process(procs::Debug&);
+
+    // OPERATIONS
+    bool process(procs::Draw& arg);
+    bool process(procs::RevealBattlegear&);
+    bool process(procs::RevealLocation&);
+    bool process(procs::ActivateLocation&);
+    bool process(procs::ReturnLocation& arg);
+    bool process(procs::SetMirage&);
+    bool process(procs::Move& arg);
+    bool process(procs::SendTo& arg);
+    bool process(procs::Destroy& arg);
+    bool process(procs::Damage& arg);
+    bool process(procs::Recover& arg);
+
+    // USER RESPONSE
+    bool process(procs::SelectMoveCommand& arg);
+    bool process(procs::SelectAttackCard& arg);
 
     template <typename... Args>
     CHAOTIC_DuelStatus operator()(std::variant<Args...>& arg) {
@@ -257,18 +351,27 @@ public:
             return CHAOTIC_DUEL_STATUS_CONTINUE;
         } else {
             ++arg.step;
-            return processors::needs_answer<T> ? CHAOTIC_DUEL_STATUS_AWAITING : CHAOTIC_DUEL_STATUS_CONTINUE;
+            return procs::needs_answer<T> ? CHAOTIC_DUEL_STATUS_AWAITING : CHAOTIC_DUEL_STATUS_CONTINUE;
         }
     }
     CHAOTIC_DuelStatus process();
     void draw(effect* reason_effect, REASON reason, PLAYER reason_player, PLAYER playerid, uint16_t count);
     void send_to(card_set targets, effect* reason_effect, REASON reason, PLAYER reason_player, PLAYER playerid,
                  LOCATION destination, uint32_t sequence, POSITION position, bool ignore);
-    bool process(processors::SendTo& arg);
+    void send_to(card* targets, effect* reason_effect, REASON reason, PLAYER reason_player, PLAYER playerid,
+                 LOCATION destination, uint32_t sequence, POSITION position, bool ignore);
+    void destroy(card_set targets, effect* reason_effect, REASON reason, PLAYER reason_player);
+    void destroy(card* target, effect* reason_effect, REASON reason, PLAYER reason_player);
     void adjust_instant();
     void adjust_disable_check_list();
     void adjust_self_destroy_set();
-    bool process(processors::Turn& arg);
+    void adjust_all();
+
+    void filter_field_effect(EFFECT, effect_list&) {}
+
+    std::vector<int32_t> adjacent(int32_t old_index);
+
+    [[nodiscard]] card_set get_all_field_card() const;
 };
 
 #endif // CHAOTIC_CORE_FIELD_H

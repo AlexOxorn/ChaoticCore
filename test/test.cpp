@@ -111,11 +111,13 @@ int main() {
 
     CHAOTIC_StartDuel(match);
     while (true) {
+        printf("=====================================\n");
         int res = CHAOTIC_DuelProcess(match);
         if (res == CHAOTIC_DUEL_STATUS_END) {
             break;
         }
         uint32_t len;
+        printf("-------------------------------------\n");
         char* messages = (char*)CHAOTIC_DuelGetMessage(match, &len);
         uint32_t read = 0;
         while(read < len) {

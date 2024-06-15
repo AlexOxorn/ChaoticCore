@@ -29,8 +29,11 @@ template <typename T>
 using pointer_set = std::unordered_set<T*>;
 // using pointer_set = std::vector<std::unique_ptr<T>>;
 
-struct message : public std::variant<MSG_ShuffleAttackDeck, MSG_ShuffleLocationDeck, MSG_ShuffleAttackHand,
-                             MSG_ShuffleMugicHand, MSG_Move, MSG_Draw> {
+struct message
+        : public std::variant<MSG_ShuffleAttackDeck, MSG_ShuffleLocationDeck, MSG_ShuffleAttackHand,
+                              MSG_ShuffleMugicHand, MSG_Move, MSG_Draw, MSG_NewTurn, MSG_NewPhase, MSG_ActivateLocation,
+                              MSG_SelectMove, MSG_Retry, MSG_CreatureMove, MSG_CombatStart, MSG_SelectAttackCard,
+                              MSG_Damage, MSG_WonInitiative, MSG_StrikerChange, MSG_CombatEnd, MSG_Recover> {
     using variant::variant;
 
     uint32_t size() {
@@ -77,7 +80,7 @@ public:
     ~match();
     const card_data& read_card(uint32_t code);
 
-    template <typename ...Args>
+    template <typename... Args>
     [[nodiscard]] group* new_group(Args&&... args) {
         auto* pgroup = new group(this, std::forward<Args>(args)...);
         groups.insert(pgroup);
@@ -87,6 +90,10 @@ public:
         groups.erase(targets);
         delete targets;
     }
+    void delete_effect(effect* peffect) {
+        effects.erase(peffect);
+        delete peffect;
+    };
     void generate_buffer();
     void write_buffer(const void* data, size_t size);
     void set_response(const void* p_void, uint32_t i);

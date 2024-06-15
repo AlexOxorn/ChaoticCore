@@ -18,12 +18,19 @@ bool field::is_location_usable(SUPERTYPE card_type, PLAYER player_id, LOCATION l
     if (pos.blocked)
         return false;
     if (card_type == SUPERTYPE::LOCATION) {
+        if (location == LOCATION::ACTIVE_LOCATION) {
+            return active_location;
+        }
+        if (location == LOCATION::FIELD) {
+            return std::none_of(board.begin(), board.end(), [](battle_board_location pos) { return pos.mirage; });
+        }
         return true;
     }
     if (card_type == SUPERTYPE::CREATURE) {
         if (!pos.occupied())
             return true;
-        if (!pos.creatures[+opp(player_id)] && core.can_engage && !infos.combat_phase)
+        if (!pos.creatures[+opp(player_id)] && !infos.combat_phase && infos.turn_phase == PHASE::ACTION_STEP
+            && infos.turn_player == +player_id && !core.turn_engage_count)
             return true;
         return false;
     }
@@ -312,11 +319,6 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
                         }
                     case SUPERTYPE::LOCATION:
                         {
-                            auto prev_mirage_itr = std::find_if(
-                                    board.begin(), board.end(), [](battle_board_location pos) { return pos.mirage; });
-                            if (prev_mirage_itr != board.end()) {
-                                throw unimplemented("Move old mirage to location deck");
-                            }
                             new_pos.mirage = pcard;
                             pcard->current.sequence = sequence;
                             break;
@@ -330,7 +332,6 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
                         }
                     default: break;
                 }
-                if (pcard->data.supertype == SUPERTYPE::CREATURE) {}
             }
         case LOCATION::MUGIC_HAND:
             {
@@ -369,6 +370,12 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
                 pcard->sendto_param.position = POSITION::FACE_DOWN;
                 break;
             }
+        case LOCATION::ACTIVE_LOCATION:
+            {
+                active_location = pcard;
+                pcard->sendto_param.position = POSITION::FACE_UP;
+                pcard->current.sequence = 0;
+            }
         default: break;
     }
     pcard->apply_field_effect();
@@ -376,6 +383,10 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
     pcard->field_id_r = pcard->field_id;
     pcard->turn_id = infos.turn_id;
 }
+void field::reveal_location(PLAYER playerid, effect* reason_effect, REASON reason, PLAYER reason_player) {
+    emplace_process<procs::RevealLocation>(playerid, reason_effect, reason, reason_player);
+}
+void field::set_mirage(card* pcard, effect* reason_effect, REASON reason, PLAYER reason_player) {}
 
 int32_t field::is_player_can_draw(uint8_t playerid) {
     fprintf(stderr, "is_player_can_draw unimplemented");
@@ -419,7 +430,12 @@ void field::send_to(card_set targets, effect* reason_effect, REASON reason, PLAY
     }
     group* ng = pmatch->new_group(std::move(targets));
     ng->is_readonly = true;
-    emplace_process<processors::SendTo>(ng, reason_effect, reason, reason_player);
+    emplace_process<procs::SendTo>(ng, reason_effect, reason, reason_player);
+}
+
+void field::send_to(card* target, effect* reason_effect, REASON reason, PLAYER reason_player, PLAYER playerid,
+                    LOCATION destination, uint32_t sequence, POSITION position, bool ignore) {
+    send_to(card_set{target}, reason_effect, reason, reason_player, playerid, destination, sequence, position, ignore);
 }
 
 void field::shuffle(PLAYER playerid, LOCATION location) {
@@ -457,4 +473,44 @@ void field::shuffle(PLAYER playerid, LOCATION location) {
         case LOCATION::ATTACK_HAND: shuffle_impl2(pmatch->new_message<MSG_ShuffleAttackHand>()); break;
         case LOCATION::MUGIC_HAND: shuffle_impl2(pmatch->new_message<MSG_ShuffleMugicHand>()); break;
     }
+}
+
+void field::destroy(card* target, effect* reason_effect, REASON reason, PLAYER reason_player) {
+    destroy(card_set{target}, reason_effect, reason, reason_player);
+}
+
+void field::destroy(card_set targets, effect* reason_effect, REASON reason, PLAYER reason_player) {
+    for (auto cit = targets.begin(); cit != targets.end();) {
+        LOCATION destination;
+        card* pcard = *cit;
+        PLAYER p = pcard->owner;
+
+        pcard->temp.reason = pcard->current.reason;
+        pcard->current.reason = reason;
+        pcard->temp.reason_effect = pcard->current.reason_effect;
+        pcard->temp.reason_player = pcard->current.reason_player;
+        if (reason_effect)
+            pcard->current.reason_effect = reason_effect;
+        pcard->current.reason_player = reason_player;
+        destination = pcard->grave_for();
+        if (!destination) {
+            targets.erase(*cit++);
+            continue;
+        }
+        pcard->set_status(STATUS::DESTROY_CONFIRMED, true);
+        pcard->sendto_param.set(p, POSITION::FACE_UP, destination, 0);
+        ++cit;
+    }
+    group* ng = pmatch->new_group(std::move(targets));
+    ng->is_readonly = true;
+    emplace_process<procs::Destroy>(ng, reason_effect, reason, reason_player);
+}
+
+card_set field::get_all_field_card() const {
+    card_set to_ret;
+    for (card* pcard : pmatch->cards) {
+        if (pcard->current.location == LOCATION::FIELD)
+            to_ret.insert(pcard);
+    }
+    return to_ret;
 }

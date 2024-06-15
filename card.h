@@ -58,11 +58,14 @@ struct disciplines {
     int16_t speed;
 };
 
-struct element_values {
-    int8_t fire;
-    int8_t air;
-    int8_t earth;
-    int8_t water;
+union element_values {
+    struct {
+        int8_t fire;
+        int8_t air;
+        int8_t earth;
+        int8_t water;
+    };
+    int8_t data[4];
 };
 
 struct card_data {
@@ -117,9 +120,6 @@ struct card_state {
     uint32_t vertical{};
     sequence_type sequence{};
     uint32_t burst_sequence{};
-    uint32_t moved_this_turn{};
-    uint32_t engaged_in_combat{};
-    uint32_t attack_damage_received{};
     int32_t energy{};
     int32_t damage{};
     disciplines stats{};
@@ -138,12 +138,6 @@ struct card_state {
         card* battlegear;
     };
     enum BRAIN_WASH : uint8_t { NORMAL, ASSUME_NO_BRAINWASH, ASSUME_BRAINWASHED } pseudo_brainwash;
-    bool won_initiative{};
-    bool won_stat_check{};
-    bool won_challenge{};
-    bool won_stat_fail{};
-    std::map<uint32_t, uint64_t> assume;
-
     REASON reason = REASON::NONE;
     effect* reason_effect{};
     PLAYER reason_player = PLAYER::NONE;
@@ -176,6 +170,7 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     using effect_container = std::multimap<uint32_t, effect*>;
     using relation_map = std::unordered_map<card*, uint32_t>;
 
+    card(match* pm);
     uint32_t cardid{};
     card_data data{};
     card_state previous{};
@@ -194,6 +189,18 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     uint32_t field_id{};
     uint32_t field_id_r{};
     uint16_t turn_id{};
+    bool won_initiative{};
+    bool won_stat_check{};
+    bool won_challenge{};
+    bool won_stat_fail{};
+    bool won_combat{};
+    uint32_t moved_this_turn{};
+    uint32_t engaged_in_combat{};
+    uint32_t attack_damage_received{};
+    uint32_t attack_damage_delt{};
+    uint32_t effect_damage_received{};
+    uint32_t effect_damage_delt{};
+    STATUS status;
 
     /*
 3 1 0 0
@@ -222,7 +229,18 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     [[nodiscard]] TRIBE get_tribes() const { return current.tribes; };
     [[nodiscard]] TRIBE get_castable_mugic() const { return current.castable_mugic; };
 
-    card(match* pm);
+    bool is_mirage() { return false; }
+    bool is_position(POSITION pos) const { return is(current.position, pos); }
+    bool is_destructible() { return true; }
+
+    int32_t accumulate_effect(EFFECT effect_type) { return 0; }
+
+    void set_status(STATUS status_to_toggle, int32_t enabled) {
+        if (enabled)
+            status |= status_to_toggle;
+        else
+            status &= ~status_to_toggle;
+    }
 
     void apply_field_effect() { fprintf(stderr, "apply_field_effect unimplemented\n"); };
     void enable_field_effect(bool enabled = true) { fprintf(stderr, "enable_field_effect unimplemented\n"); };
@@ -243,11 +261,21 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     void unequip();
     void clear_card_target();
     effect* is_affected_by_effect(EFFECT);
-};
+    bool is_affected_by_effect(effect*) { return true; };
+    void filter_effect(EFFECT, effect_list&) { }
 
-struct card_sort {
-    bool operator()(const card* c1, const card* c2) const { return c1->cardid < c2->cardid; };
+    std::pair<int32_t, uint8_t> calculate_attack_damage(card* source, card* target);
+    static bool card_operation_sort(card* c1, card* c2);
+
+    LOCATION grave_for() const {
+        switch(data.supertype) {
+            case SUPERTYPE::CREATURE:
+            case SUPERTYPE::BATTLE_GEAR:
+            case SUPERTYPE::MUGIC: return LOCATION::GENERAL_DISCARD;
+            case SUPERTYPE::ATTACK: return LOCATION::ATTACK_DISCARD;
+            default: return LOCATION::NONE;
+        }
+    }
 };
-using card_set = std::set<card*, card_sort>;
 
 #endif // CHAOTIC_CORE_CARD_H

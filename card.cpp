@@ -4,7 +4,12 @@
 
 #include "card.h"
 #include "match.h"
+#include "field.h"
 #include <cstdio>
+
+bool card_sort::operator()(const card* c1, const card* c2) const {
+    return c1->cardid < c2->cardid;
+}
 
 card::card(match* pm) : lua_obj_helper(pm) {
     temp.set0xff();
@@ -57,9 +62,44 @@ effect* card::is_affected_by_effect(EFFECT) {
     fprintf(stderr, "card::is_affected_by_effect unimplemented\n");
     return nullptr;
 }
+std::pair<int32_t, uint8_t> card::calculate_attack_damage(card* source, card* target) {
+    int32_t total = data.energy;
+    int32_t element = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (data.elements.data[i] < 0)
+            continue;
+        if (!source->data.elements.data[i])
+            continue;
+        total += data.elements.data[i];
+        element |= (1 << i);
+    }
+    return {total, element};
+}
+bool card::card_operation_sort(card* c1, card* c2) {
+    match* pmatch = c1->pmatch;
+    PLAYER cp1 = c1->current.controller;
+    PLAYER cp2 = c2->current.controller;
+    if (cp1 != cp2) {
+        if (cp1 == PLAYER::NONE || cp2 == PLAYER::NONE)
+            return cp1 < cp2;
+        if (pmatch->game_field->infos.turn_player == 0)
+            return cp1 < cp2;
+        else
+            return cp1 > cp2;
+    }
+    if (c1->current.location != c2->current.location)
+        return c1->current.location < c2->current.location;
+    if (is(c1->current.location, (LOCATION::DECK | LOCATION::GRAVE | LOCATION::REMOVED)))
+        return c1->current.sequence.index > c2->current.sequence.index;
+    else if (is(c1->current.location, LOCATION::FIELD)) {
+        return pmatch->game_field->index_from(c1->current.sequence)
+             < pmatch->game_field->index_from(c2->current.sequence);
+    }
+    return c1->current.sequence.index < c2->current.sequence.index;
+}
 
-template<typename T>
-static constexpr void set_max_property_val(T& val) {
+template <typename T>
+constexpr static void set_max_property_val(T& val) {
     val = static_cast<T>(~T());
 }
 void card_state::set0xff() {
@@ -69,9 +109,6 @@ void card_state::set0xff() {
     set_max_property_val(sequence.index);
     set_max_property_val(sequence.horizontal);
     set_max_property_val(sequence.vertical);
-    set_max_property_val(moved_this_turn);
-    set_max_property_val(engaged_in_combat);
-    set_max_property_val(attack_damage_received);
     set_max_property_val(energy);
     set_max_property_val(damage);
     set_max_property_val(controller);
@@ -91,13 +128,9 @@ void card_state::set0xff() {
     set_max_property_val(location);
     set_max_property_val(position);
     set_max_property_val(pseudo_brainwash);
-    set_max_property_val(won_initiative);
-    set_max_property_val(won_stat_check);
-    set_max_property_val(won_challenge);
-    set_max_property_val(won_stat_fail);
 }
 card_data::card_data(const CHAOTIC_CardData& data) {
-#define COPY(val) val = data.val;
+#define COPY(val)            val = data.val;
 #define COPY_ENUM(val, enum) val = static_cast<enum>(data.val);
     COPY(code)
     COPY(supercode)
@@ -111,14 +144,14 @@ card_data::card_data(const CHAOTIC_CardData& data) {
         stats.wisdom = static_cast<int16_t>(data.wisdom);
         stats.speed = static_cast<int16_t>(data.speed);
     }
-    if (is(supertype, SUPERTYPE::CREATURE | SUPERTYPE::ATTACK)) {
+    if (any_of(supertype, SUPERTYPE::CREATURE, SUPERTYPE::ATTACK)) {
         elements.fire = static_cast<int8_t>(data.fire);
         elements.air = static_cast<int8_t>(data.air);
         elements.earth = static_cast<int8_t>(data.earth);
         elements.water = static_cast<int8_t>(data.water);
         COPY(energy)
     }
-    if (is(supertype, SUPERTYPE::CREATURE | SUPERTYPE::MUGIC)) {
+    if (any_of(supertype, SUPERTYPE::CREATURE, SUPERTYPE::MUGIC)) {
         COPY(mugic_ability)
     }
 #undef COPY

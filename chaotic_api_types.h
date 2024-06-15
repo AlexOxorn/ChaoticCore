@@ -7,29 +7,30 @@
 
 #include <cstdint>
 #include "common.h"
+#include "internal_common.h"
 
 typedef void* CHAOTIC_Duel;
 
 typedef struct CHAOTIC_CardData {
-    uint32_t code;
-    uint32_t supercode;
-    uint32_t subcode;
-    uint32_t supertype;
-    uint64_t subtype;
-    uint8_t tribe;
-    uint32_t courage;
-    uint32_t power;
-    uint32_t wisdom;
-    uint32_t speed;
-    uint32_t energy;
-    int8_t fire;
-    int8_t air;
-    int8_t earth;
-    int8_t water;
-    int8_t mugic_ability;
-    uint8_t loyal;
-    uint8_t limited;
-    uint8_t legendary;
+    int code;
+    int supercode;
+    int subcode;
+    int supertype;
+    int subtype;
+    int tribe;
+    int courage;
+    int power;
+    int wisdom;
+    int speed;
+    int energy;
+    int fire;
+    int air;
+    int earth;
+    int water;
+    int mugic_ability;
+    int loyal;
+    int limited;
+    int legendary;
 }CHAOTIC_CardData;
 
 typedef struct CHAOTIC_NewCardInfo {
