@@ -5,9 +5,9 @@
 #include "internal_common.h"
 #include "protocol_buffers/messages.pb.h"
 
-void write_coord_info(MSG_sequence* msg, sequence_type seq) {
-    msg->mutable_coord()->set_horizontal(seq.horizontal);
-    msg->mutable_coord()->set_vertical(seq.vertical);
+void write_coord_info(MSG_coordinate* msg, sequence_type seq) {
+    msg->set_horizontal(seq.horizontal);
+    msg->set_vertical(seq.vertical);
 }
 
 void write_sequence_info(MSG_sequence* msg, sequence_type seq, LOCATION loc) {

@@ -30,10 +30,11 @@ std::vector<int32_t> field::adjacent(int32_t from) {
     auto [x, y] = coord_from(from);
 
     std::vector<int32_t> ret;
-    auto move = [&, this](int newx, int newy) {
-        auto newpos = get_board_from_sequence({x + 1, y + 1});
-        if (!newpos.blocked)
-            ret.push_back(index_from({x + 1, y + 1}));
+    auto move = [&ret, this](int newx, int newy) {
+        const auto& newpos = board[index_from(newx, newy)];
+        if (!newpos.blocked) {
+            ret.push_back(index_from(newx, newy));
+        }
     };
     // Up Left
     if (y > 0 and x > 0)
@@ -42,26 +43,25 @@ std::vector<int32_t> field::adjacent(int32_t from) {
     if (y > 0)
         move(x, y - 1);
     // up right
-    if (y > 0 and x < 2 * board_size)
+    if (y > 0 and x < 2 * board_size - 1)
         move(x + 1, y - 1);
 
     // Left
     if (x > 0)
         move(x - 1, y);
     // right
-    if (x < 2 * board_size)
+    if (x < 2 * board_size - 1)
         move(x + 1, y);
 
     // down Left
-    if (y < board_size and x > 0)
+    if (y < board_size - 1 and x > 0)
         move(x - 1, y + 1);
     // down
-    if (y < board_size)
+    if (y < board_size - 1)
         move(x, y + 1);
     // up right
-    if (y < board_size and x < 2 * board_size)
+    if (y < board_size - 1 and x < 2 * board_size - 1)
         move(x + 1, y + 1);
-
     return ret;
 }
 
@@ -160,7 +160,7 @@ bool field::process(procs::Draw& arg) {
         case 5:
             {
                 core.operated_set.swap(arg.drawn_set);
-                returns.set<int32_t>(count);
+                returns.put<int32_t>(count);
                 return true;
             }
     }
@@ -192,9 +192,10 @@ bool field::process(procs::SendTo& arg) {
                 // Set Previous State
                 // -------------------------------
                 if (targets->container.empty()) {
-                    returns.set<int32_t>(0);
+                    returns.put<int32_t>(0);
                     core.operated_set.clear();
                     pmatch->delete_group(targets);
+                    return true;
                 }
                 card_set leave_p, destroying;
 
@@ -485,7 +486,7 @@ bool field::process(procs::SendTo& arg) {
                 // -------------------------------
                 core.operated_set.clear();
                 core.operated_set = targets->container;
-                returns.set<int32_t>(static_cast<int32_t>(targets->container.size()));
+                returns.put<int32_t>(static_cast<int32_t>(targets->container.size()));
                 pmatch->delete_group(targets);
                 return true;
             }
@@ -493,7 +494,7 @@ bool field::process(procs::SendTo& arg) {
     return true;
 }
 bool field::process(procs::RevealBattlegear& arg) {
-    fprintf(stderr, "PROCESS RevealBattlegear Not implemented\n");
+//     fprintf(stderr, "PROCESS RevealBattlegear Not implemented\n");
     return true;
 }
 bool field::process(procs::Move& arg) {
@@ -510,19 +511,23 @@ bool field::process(procs::Move& arg) {
                 // SANITY CHECK
                 // ============
                 if (!board[source_index].creatures[+moving_player]) {
-                    returns.set(false);
+                    printf("No Creature\n");
+                    returns.put(false);
                     return true;
                 }
                 if (board[destination_index].creatures[+moving_player]) {
-                    returns.set(false);
+                    printf("Space Occupied\n");
+                    returns.put(false);
                     return true;
                 }
                 if (!arg.allow_combat && board[destination_index].creatures[+opp(moving_player)]) {
-                    returns.set(false);
+                    printf("Combat Disallowed\n");
+                    returns.put(false);
                     return true;
                 }
                 if (board[destination_index].blocked) {
-                    returns.set(false);
+                    printf("Blocked\n");
+                    returns.put(false);
                     return true;
                 }
 
@@ -533,6 +538,9 @@ bool field::process(procs::Move& arg) {
                 // ============
                 // COMBAT CHECK
                 // ============
+                auto board_p = board[destination_index];
+                printf("%d -> %p %p\n", +opp(moving_player), board_p.creatures[0], board_p.creatures[1]);
+                printf("battle => %p\n", board[destination_index].creatures[+opp(moving_player)]);
                 if (board[destination_index].creatures[+opp(moving_player)]) {
                     arg.start_combat = true;
                     return false;
@@ -557,6 +565,8 @@ bool field::process(procs::Move& arg) {
                 pcard->previous.sequence = pcard->current.sequence;
                 pcard->current.sequence = coord_from(destination_index);
 
+                core.turn_move_count++;
+
                 write_location_info(message.mutable_new_location(), pcard->get_location_info());
                 message.set_combat(arg.start_combat);
 
@@ -579,7 +589,8 @@ bool field::process(procs::Move& arg) {
 
                 process_instant_event();
                 process_single_event();
-                returns.set(arg.start_combat);
+                printf("START COMBAT 1: %d\n", arg.start_combat);
+                returns.put<bool&>(arg.start_combat);
                 return true;
             }
     }
@@ -673,7 +684,8 @@ bool field::process(procs::Recover& arg) {
             }
         case 1:
             {
-                for (auto target : arg.targets) {
+                for (auto tar_it = arg.targets.begin(); tar_it != arg.targets.end();) {
+                    auto& target = *tar_it++;
                     target->previous.damage = target->current.damage;
                     target->current.damage = std::max(target->current.damage - arg.amount, 0);
 
@@ -760,7 +772,7 @@ bool field::process(procs::Destroy& arg) {
         case 3:
             {
                 if (targets->container.empty()) {
-                    returns.set<int32_t>(0);
+                    returns.put<int32_t>(0);
                     core.operated_set.clear();
                     pmatch->delete_group(targets);
                     return true;
@@ -811,7 +823,7 @@ bool field::process(procs::Destroy& arg) {
             {
                 core.operated_set.clear();
                 core.operated_set = targets->container;
-                returns.set<int32_t>(static_cast<int32_t>(core.operated_set.size()));
+                returns.put<int32_t>(static_cast<int32_t>(core.operated_set.size()));
                 pmatch->delete_group(targets);
                 return true;
             }

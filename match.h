@@ -36,6 +36,10 @@ struct message
                               MSG_Damage, MSG_WonInitiative, MSG_StrikerChange, MSG_CombatEnd, MSG_Recover> {
     using variant::variant;
 
+    const char* type() {
+        return std::visit([](const auto& mes) { return typeid(decltype(mes)).name();}, *this);
+    }
+
     uint32_t size() {
         return std::visit([](const auto& mes) { return mes.ByteSizeLong(); }, *this);
     }
@@ -87,6 +91,7 @@ public:
         return pgroup;
     }
     void delete_group(group* targets) {
+        printf("targets to delete %p %d\n", targets, groups.contains(targets));
         groups.erase(targets);
         delete targets;
     }

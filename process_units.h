@@ -206,6 +206,7 @@ namespace procs {
         PLAYER player;
         int32_t destination_index;
         bool allow_defender;
+        std::array<card*, 2> creatures;
         Combat(uint16_t step_, PLAYER player, int32_t destination, bool allow_defender = false) :
                 Process(step_), player(player), destination_index(destination), allow_defender(allow_defender) {}
     };

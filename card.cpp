@@ -17,7 +17,7 @@ card::card(match* pm) : lua_obj_helper(pm) {
 }
 void card::cancel_field_effect() {}
 void card::reset(RESET id, RESET type) {
-    fprintf(stderr, "card::reset unimplemented\n");
+//     fprintf(stderr, "card::reset unimplemented\n");
     using enum RESET;
     if (!is(type, EVENT | PHASE | CODE | COPY | CARD))
         return;
@@ -32,10 +32,10 @@ void card::reset(RESET id, RESET type) {
     }
 }
 void card::clear_related_effect() {
-    fprintf(stderr, "card::clear_related_effect unimplemented\n");
+//     fprintf(stderr, "card::clear_related_effect unimplemented\n");
 }
 void card::refresh_negated_status() {
-    fprintf(stderr, "card::refresh_negated_status unimplemented\n");
+//     fprintf(stderr, "card::refresh_negated_status unimplemented\n");
 }
 void card::equip(card* target, bool send_msg) {
     if (current.equipped_creature)
@@ -56,10 +56,10 @@ void card::unequip() {
     current.equipped_creature = nullptr;
 }
 void card::clear_card_target() {
-    fprintf(stderr, "card::clear_card_target unimplemented\n");
+//     fprintf(stderr, "card::clear_card_target unimplemented\n");
 }
 effect* card::is_affected_by_effect(EFFECT) {
-    fprintf(stderr, "card::is_affected_by_effect unimplemented\n");
+//     fprintf(stderr, "card::is_affected_by_effect unimplemented\n");
     return nullptr;
 }
 std::pair<int32_t, uint8_t> card::calculate_attack_damage(card* source, card* target) {

@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <vector>
 #include <optional>
+#include <iostream>
 #include <algorithm>
 
 class match;
@@ -131,10 +132,10 @@ struct processor {
     bool end_combat;
     PLAYER combat_winner;
     bool shuffle_check_disabled;
-    bool shuffle_attack_hand_check[2];
-    bool shuffle_mugic_hand_check[2];
-    bool shuffle_attack_deck_check[2];
-    bool shuffle_location_deck_check[2];
+    bool shuffle_attack_hand_check[2]{};
+    bool shuffle_mugic_hand_check[2]{};
+    bool shuffle_attack_deck_check[2]{};
+    bool shuffle_location_deck_check[2]{};
 
     // EFFECTS
     effect_count_map effect_count_code;
@@ -180,6 +181,14 @@ public:
     std::vector<uint8_t> data;
     void clear() { data.clear(); }
 
+    void print() {
+        putc('[', stdout);
+        for (auto x : data) {
+            printf("%x, ", x);
+        }
+        puts("]\n");
+    }
+
     template <class T>
     T at(const size_t pos) const {
         constexpr static auto valsize = sizeof(T);
@@ -199,7 +208,7 @@ public:
     template <trivially_copyable... T>
         requires(sizeof...(T) > 1)
     std::tuple<T...> get() {
-        int index = 0;
+        size_t index = 0;
         std::tuple<T...> ret{at<T>(index++)...};
         return ret;
     }
@@ -214,13 +223,13 @@ public:
     }
 
     template <trivially_copyable T>
-    void set(T&& val) {
-        set<T>(0, std::forward<T>(val));
+    void put(T&& val) {
+        set(0, std::forward<T>(val));
     }
     template <trivially_copyable... T>
-    void set(T&&... val) {
-        int index = 0;
-        (set<T>(index++, std::forward<T>(val)), ...);
+    void put(T&&... val) {
+        size_t index = 0;
+        (set(index++, std::forward<T>(val)), ...);
     }
 
     [[nodiscard]] bool bitGet(const size_t pos) const {
@@ -261,7 +270,51 @@ public:
     progressive_buffer returns;
 
     explicit field(match* pmatch, const CHAOTIC_DuelOptions& options) :
-            pmatch(pmatch), board_size(options.columns), board(board_size * board_size * 2 + 1){};
+            pmatch(pmatch), board_size(options.columns), board(board_size * board_size * 2 + 1) {
+        for (int i = 1; i < board_size; ++i) {
+            for (int j = 0; j < i; ++j) {
+                board[index_from(j, i)].blocked = true;
+                board[index_from(2 * board_size - j - 1, i)].blocked = true;
+            }
+        }
+    };
+
+    void print_field() {
+        for (int y = 0; y < board_size; ++y) {
+            for (int x = 0; x < 2 * board_size; ++x) {
+                auto& pos = board[index_from(x, y)];
+                if (pos.blocked)
+                    printf("XX|XX");
+                else {
+                    for (int i = 0; i < 2; ++i) {
+                        if (auto* pcard = pos.creatures[i]; pcard) {
+                            printf("%02d", (pcard->get_energy() - pcard->current.damage));
+                        } else {
+                            printf("__");
+                        }
+                        if (i == 0)
+                            printf("|");
+                    }
+                }
+                printf(" ");
+            }
+            printf("\n");
+        }
+
+        printf("loc1: %2zu\tloc2: %2zu\n"
+               "atk1: %2zu\tatk2: %2zu\n"
+               "A-D1: %2zu\tA-D2: %2zu\n"
+               "G-D1: %2zu\tG-D2: %2zu\n",
+               player[0].location_deck.size(),
+               player[1].location_deck.size(),
+               player[0].attack_deck.size(),
+               player[1].attack_deck.size(),
+               player[0].attack_grave.size(),
+               player[1].attack_grave.size(),
+               player[0].general_grave.size(),
+               player[1].general_grave.size());
+    }
+
     bool is_location_usable(SUPERTYPE card_type, PLAYER player_id, LOCATION location, sequence_type sequence);
     bool move_card(PLAYER controller, card* pcard, LOCATION location, sequence_type sequence, bool engage = false);
     void add_card(PLAYER controller, card* pcard, LOCATION, sequence_type);
@@ -278,6 +331,7 @@ public:
     int32_t index_from(sequence_type sequence) const {
         return sequence.vertical * 2 * board_size + sequence.horizontal;
     }
+    int32_t index_from(int32_t x, int32_t y) const { return y * 2 * board_size + x; }
     sequence_type coord_from(int32_t index) const { return {index % (2 * board_size), index / (2 * board_size)}; }
 
     battle_board_location& get_board_from_sequence(sequence_type sequence) {

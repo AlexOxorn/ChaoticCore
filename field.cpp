@@ -311,7 +311,6 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
                         {
                             new_pos.creatures[+controller] = pcard;
                             pcard->current.sequence = sequence;
-                            pcard->current.sequence.index = +controller;
                             if (pcard->current.battlegear) {
                                 pcard->current.battlegear->current.sequence = sequence;
                             }
@@ -332,6 +331,7 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
                         }
                     default: break;
                 }
+                break;
             }
         case LOCATION::MUGIC_HAND:
             {
@@ -389,13 +389,20 @@ void field::reveal_location(PLAYER playerid, effect* reason_effect, REASON reaso
 void field::set_mirage(card* pcard, effect* reason_effect, REASON reason, PLAYER reason_player) {}
 
 int32_t field::is_player_can_draw(uint8_t playerid) {
-    fprintf(stderr, "is_player_can_draw unimplemented");
+//     fprintf(stderr, "is_player_can_draw unimplemented");
     return true;
 }
 
 CHAOTIC_DuelStatus field::process() {
     std::move(core.subunits.rbegin(), core.subunits.rend(), std::front_inserter(core.units));
     core.subunits.clear();
+    /*printf("\033[32mProcess: [\033[0m");
+    for (const auto& x : core.units) {
+        printf("\033[32m%s-%d, \033[0m",
+               std::visit([](auto&&x)->decltype(auto){ return typeid(x); }, x).name(),
+               std::visit([](auto&&x)->decltype(auto){ return x.step; }, x));
+    }
+    printf("\033[32m]\033[0m\n");*/
     if (core.units.empty())
         return CHAOTIC_DUEL_STATUS_END;
     return std::visit(*this, core.units.front());

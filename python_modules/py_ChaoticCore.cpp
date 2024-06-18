@@ -39,7 +39,7 @@ static void destruct(ChaoticGame* self) {
 
 static void ChaoticGame_dealloc(ChaoticGame* self) {
     destruct(self);
-    self->ob_base.ob_type->tp_free((PyObject*) self);
+    Py_TYPE(self)->tp_free((PyObject*) self);
 }
 
 static PyObject* ChaoticGame_new(PyTypeObject* type, PyObject*, PyObject*) {
@@ -93,7 +93,7 @@ static int ChaoticGame_init(ChaoticGame* self, PyObject* args, PyObject* kwds) {
     }
 
     if (cardReaderPayload)
-        Py_XINCREF(cardReaderDonePayload);
+        Py_XINCREF(cardReaderPayload);
     if (scriptReaderPayload)
         Py_XINCREF(scriptReaderPayload);
     if (logHandlerPayload)
@@ -115,7 +115,7 @@ static int ChaoticGame_init(ChaoticGame* self, PyObject* args, PyObject* kwds) {
             PyObject* result = PyObject_CallObject(func, arglist);
             Py_DecRef(arglist);
             if (result == nullptr) {
-                fprintf(stderr, "CARD READER FAILED WITH EXCEPTION:\n");
+//                 fprintf(stderr, "CARD READER FAILED WITH EXCEPTION:\n");
                 PyErr_Print();
                 return;
             }
@@ -144,8 +144,6 @@ static int ChaoticGame_init(ChaoticGame* self, PyObject* args, PyObject* kwds) {
         };
         opts.cardReaderPayload = Py_BuildValue("(O,O)", cardReader, cardReaderPayload ?: Py_None);
         self->payloads[0] = static_cast<PyObject*>(opts.cardReaderPayload);
-        decref(cardReader);
-        decref(cardReaderPayload);
     }
 
     CHAOTIC_Duel game;
@@ -200,11 +198,13 @@ static PyObject* ChaoticGame_new_card(ChaoticGame* self, PyObject* args, PyObjec
 
     CHAOTIC_DuelNewCard(self->duel, card_info);
 
+    Py_IncRef(Py_None);
     return Py_None;
 }
 
 static PyObject* ChaoticGame_start_duel(ChaoticGame* self, PyObject*) {
     CHAOTIC_StartDuel(self->duel);
+    Py_IncRef(Py_None);
     return Py_None;
 }
 
@@ -227,7 +227,7 @@ static PyObject* ChaoticGame_get_message(ChaoticGame* self, PyObject*) {
 
         PyObject* pyMessageType = messageTypes[message_type];
         PyObject* pyMessage = PyObject_CallObject(pyMessageType, nullptr);
-        PyObject* str = PyBytes_FromStringAndSize(head, subsize);
+        PyObject* str = subsize ? PyBytes_FromStringAndSize(head, subsize) : PyBytes_FromString("");
         PyObject* method_name = PyUnicode_FromString("ParseFromString");
         PyObject_CallMethodOneArg(pyMessage, method_name, str);
 
@@ -247,7 +247,6 @@ static PyObject* ChaoticGame_get_message_group(ChaoticGame* self, PyObject*) {
     while (true) {
         res = CHAOTIC_DuelProcess(self->duel);
         PyObject* sublist = ChaoticGame_get_message(self, nullptr);
-        printf("HI\n");
         PyObject_CallMethodOneArg(list, pyextend, sublist);
         Py_DecRef(sublist);
         if (res != CHAOTIC_DUEL_STATUS_CONTINUE)
@@ -266,6 +265,7 @@ static PyObject* CHAOTIC_set_response(ChaoticGame* self, PyObject* list) {
     PyObject* iter = PyObject_GetIter(list);
     if (!iter) {
         Py_XDECREF(iter);
+        Py_IncRef(Py_None);
         return Py_None;
     }
 
@@ -276,6 +276,7 @@ static PyObject* CHAOTIC_set_response(ChaoticGame* self, PyObject* list) {
 
     CHAOTIC_DuelSetResponse(self->duel, response.data(), response.size() * sizeof(response[0]));
 
+    Py_IncRef(Py_None);
     return Py_None;
 }
 
@@ -286,12 +287,19 @@ static PyObject* CHAOTIC_respond_and_get(ChaoticGame* self, PyObject* args) {
     return ChaoticGame_get_message_group(self, nullptr);
 }
 
+static PyObject* CHAOTIC_print_board(ChaoticGame* self, PyObject* args) {
+    CHAOTIC_PrintBoard(self->duel);
+    Py_IncRef(Py_None);
+    return Py_None;
+}
+
 static PyObject* CHAOTIC_enter(ChaoticGame* self, PyObject*) {
     return (PyObject*) self;
 }
 
 static PyObject* CHAOTIC_exit(ChaoticGame* self, PyObject*) {
     destruct(self);
+    Py_IncRef(Py_None);
     return Py_None;
 }
 
@@ -323,6 +331,10 @@ static PyMethodDef ChaoticGame_methods[] = {
         {
          "respond_and_get", (PyCFunction) CHAOTIC_respond_and_get,
          METH_VARARGS, "Respond to the game, and get the next set of messages",
+         },
+        {
+         "print_board", (PyCFunction) CHAOTIC_print_board,
+         METH_VARARGS, "Print A minimal board",
          },
         {
          "__enter__", (PyCFunction) CHAOTIC_enter,
@@ -377,13 +389,27 @@ static PyTypeObject ChaoticGame_Type = {
 };
 
 static void init_messages() {
-#define SET_MESSAGE(x, name) messageTypes[x] = (PyObject_GetAttrString(ProtoBufFile, #name));
-    SET_MESSAGE(0, MSG_ShuffleAttackDeck)
-    SET_MESSAGE(1, MSG_ShuffleLocationDeck)
-    SET_MESSAGE(2, MSG_ShuffleAttackHand)
-    SET_MESSAGE(3, MSG_ShuffleMugicHand)
-    SET_MESSAGE(4, MSG_Move)
-    SET_MESSAGE(5, MSG_Draw)
+#define SET_MESSAGE(name) messageTypes[x++] = (PyObject_GetAttrString(ProtoBufFile, #name));
+    int x = 0;
+    SET_MESSAGE(MSG_ShuffleAttackDeck)
+    SET_MESSAGE(MSG_ShuffleLocationDeck)
+    SET_MESSAGE(MSG_ShuffleAttackHand)
+    SET_MESSAGE(MSG_ShuffleMugicHand)
+    SET_MESSAGE(MSG_Move)
+    SET_MESSAGE(MSG_Draw)
+    SET_MESSAGE(MSG_NewTurn)
+    SET_MESSAGE(MSG_NewPhase)
+    SET_MESSAGE(MSG_ActivateLocation)
+    SET_MESSAGE(MSG_SelectMove)
+    SET_MESSAGE(MSG_Retry)
+    SET_MESSAGE(MSG_CreatureMove)
+    SET_MESSAGE(MSG_CombatStart)
+    SET_MESSAGE(MSG_SelectAttackCard)
+    SET_MESSAGE(MSG_Damage)
+    SET_MESSAGE(MSG_WonInitiative)
+    SET_MESSAGE(MSG_StrikerChange)
+    SET_MESSAGE(MSG_CombatEnd)
+    SET_MESSAGE(MSG_Recover)
 #undef SET_MESSAGE
 }
 

@@ -20,11 +20,11 @@ bool field::raise_single_event(card* trigger_card, card_set* event_cards, EVENT 
     return false;
 }
 int32_t field::process_single_event() {
-    fprintf(stderr, "field::process_single_event unimplemented\n");
+    //     fprintf(stderr, "field::process_single_event unimplemented\n");
     return 0;
 }
 int32_t field::process_instant_event() {
-    fprintf(stderr, "field::process_single_event unimplemented\n");
+    //     fprintf(stderr, "field::process_single_event unimplemented\n");
     return 0;
 }
 void field::adjust_instant() {
@@ -38,10 +38,10 @@ void field::adjust_all() {
     emplace_process<procs::Adjust>();
 }
 void field::adjust_disable_check_list() {
-    fprintf(stderr, "field::process_single_event unimplemented\n");
+    //     fprintf(stderr, "field::process_single_event unimplemented\n");
 }
 void field::adjust_self_destroy_set() {
-    fprintf(stderr, "field::process_single_event unimplemented\n");
+    //     fprintf(stderr, "field::process_single_event unimplemented\n");
 }
 
 bool field::process(procs::Adjust& arg) {
@@ -135,13 +135,13 @@ bool field::process(procs::Adjust& arg) {
                 // SHUFFLE HAND
                 // ============
                 for (int p = 0; p < 2; p++) {
-                    for (auto* pcard : player[0].attack_hand) {
+                    for (auto* pcard : player[p].attack_hand) {
                         effect* pub = pcard->is_affected_by_effect(EFFECT::PUBLIC);
                         if (!pub && pcard->is_position(POSITION::FACE_UP))
-                            core.shuffle_attack_hand_check[0] = true;
+                            core.shuffle_attack_hand_check[p] = true;
                         pcard->current.position = pub ? POSITION::FACE_UP : POSITION::FACE_DOWN;
                     }
-                    for (auto* pcard : player[0].mugic_hand) {
+                    for (auto* pcard : player[p].mugic_hand) {
                         if (pcard->is_position(POSITION::FACE_UP))
                             core.shuffle_mugic_hand_check[0] = true;
                         pcard->current.position = POSITION::FACE_DOWN;
@@ -178,10 +178,6 @@ bool field::process(procs::Adjust& arg) {
                     return false;
                 }
                 for (int p = 0; p < 2; ++p) {
-                    if (core.shuffle_attack_hand_check[0])
-                        shuffle((PLAYER) p, LOCATION::ATTACK_HAND);
-                    if (core.shuffle_mugic_hand_check[1])
-                        shuffle((PLAYER) p, LOCATION::MUGIC_HAND);
                     if (core.shuffle_attack_deck_check[0])
                         shuffle((PLAYER) p, LOCATION::ATTACK_DECK);
                     if (core.shuffle_location_deck_check[1])
@@ -200,12 +196,13 @@ bool field::process(procs::Startup& arg) {
                 core.shuffle_attack_hand_check[1] = false;
                 core.shuffle_mugic_hand_check[0] = false;
                 core.shuffle_mugic_hand_check[1] = false;
-                core.shuffle_attack_deck_check[0] = false;
-                core.shuffle_attack_deck_check[1] = false;
-                core.shuffle_location_deck_check[0] = false;
-                core.shuffle_location_deck_check[1] = false;
+                core.shuffle_attack_deck_check[0] = true;
+                core.shuffle_attack_deck_check[1] = true;
+                core.shuffle_location_deck_check[0] = true;
+                core.shuffle_location_deck_check[1] = true;
                 raise_event(nullptr, EVENT::STARTUP, nullptr, REASON::NONE, PLAYER::NONE, PLAYER::NONE, 0);
                 process_instant_event();
+                adjust_all();
                 return false;
             }
         case 1:
@@ -241,7 +238,7 @@ bool field::process(procs::Startup& arg) {
             }
         case 3:
             {
-                emplace_process<procs::Debug>();
+                emplace_process<procs::Turn>(PLAYER::ONE);
                 return false;
             }
         case 4:
@@ -306,15 +303,20 @@ bool field::process(procs::Turn& arg) {
                 ++infos.turn_id_by_player[+turn_player];
                 infos.turn_player = +turn_player;
                 ++turns_since_battle;
+
                 auto& message = pmatch->new_message<MSG_NewTurn>();
                 message.set_playerid(+turn_player);
 
                 infos.turn_phase = PHASE::LOCATION_STEP;
                 infos.combat_phase = PHASE::NONE;
-
                 raise_event(nullptr, EVENT::PHASE_START_LOCATION, nullptr, REASON::NONE, PLAYER::NONE, turn_player, 0);
+
                 process_instant_event();
                 adjust_all();
+                return false;
+            }
+        case 2:
+            {
                 return false;
             }
         case 3:
@@ -396,10 +398,12 @@ bool field::process(procs::Turn& arg) {
                 adjust_all();
                 return false;
             }
-        case 10: {
+        case 10:
+            {
                 emplace_process<procs::ReturnLocation>();
             }
-        case 11: {
+        case 11:
+            {
                 core.new_triggers.clear();
                 arg.step = procs::restart;
                 arg.turn_player = opp(arg.turn_player);
@@ -412,7 +416,6 @@ bool field::process(procs::Combat& arg) {
     auto moving_player = arg.player;
     auto destination_index = arg.destination_index;
     auto& combat_pos = board[arg.destination_index];
-    card* creatures[] = {combat_pos.creatures[0], combat_pos.creatures[1]};
 
     constexpr int DEFENDER = 0;
     constexpr int ENGAGEMENT = 10;
@@ -455,6 +458,8 @@ bool field::process(procs::Combat& arg) {
                 // ===============
                 // ENGAGEMENT STEP
                 // ===============
+
+                arg.creatures = combat_pos.creatures;
 
                 infos.turns_since_no_damage = 0;
 
@@ -661,7 +666,7 @@ bool field::process(procs::Combat& arg) {
                 if (combat_pos.creatures[infos.striking_player]->is_affected_by_effect(EFFECT::RANDOM_ATTACK)) {
                     std::uniform_int_distribution<> distrib(0,
                                                             (int) player[infos.striking_player].attack_hand.size() - 1);
-                    returns.set<int32_t>(distrib(pmatch->random));
+                    returns.put<int32_t>(distrib(pmatch->random));
                     return false;
                 }
 
@@ -756,18 +761,19 @@ bool field::process(procs::Combat& arg) {
                 // END COMBAT
                 // ==========
                 auto& message = pmatch->new_message<MSG_CombatEnd>();
-                message.set_code1(creatures[0]->data.code);
-                message.set_code2(creatures[1]->data.code);
+//                asm("int3");
+                message.set_code1(arg.creatures[0]->data.code);
+                message.set_code2(arg.creatures[1]->data.code);
                 message.set_winner(+core.combat_winner);
                 if (core.combat_winner != PLAYER::NONE) {
-                    creatures[+core.combat_winner]->won_combat = true;
+                    arg.creatures[+core.combat_winner]->won_combat = true;
                 }
 
                 infos.combat_phase = PHASE::NONE;
                 core.end_combat = false;
                 core.combat_winner = PLAYER::NONE;
                 core.battle_position = nullptr;
-                for (card* pcard : creatures) {
+                for (card* pcard : arg.creatures) {
                     pcard->engaged_in_combat = false;
                 }
                 return true;
@@ -788,6 +794,8 @@ bool field::process(procs::MoveCommand& arg) {
 
                 // Mandatory Attack     (Rothar, Forceful Negotiator)
                 // EFFECT::MUST_ATTACK
+
+                core.movable_cards.clear();
 
                 if (core.must_move) {
                     return false;
@@ -826,6 +834,9 @@ bool field::process(procs::MoveCommand& arg) {
                                 if (newindex == starting_index)
                                     continue;
                                 auto& newpos = board[newindex];
+                                if (newpos.blocked)
+                                    continue;
+
                                 if (!newpos.occupied()) {
                                     intermediate_next.insert(newindex);
                                     movable_positions.insert(newindex);
@@ -844,11 +855,14 @@ bool field::process(procs::MoveCommand& arg) {
                     std::vector<int32_t> option_list;
                     option_list.insert(option_list.end(), movable_positions.begin(), movable_positions.end());
                     option_list.insert(option_list.end(), attack_positions.begin(), attack_positions.end());
-                    core.movable_cards.clear();
-                    core.movable_cards.emplace_back(pcard, option_list);
+                    if (!option_list.empty())
+                        core.movable_cards.emplace_back(pcard, option_list);
                 }
 
-                emplace_process<procs::SelectMoveCommand>((PLAYER) infos.turn_player);
+                if (core.movable_cards.empty())
+                    returns.put(-1);
+                else
+                    emplace_process<procs::SelectMoveCommand>((PLAYER) infos.turn_player);
                 return false;
             }
         case 1:
@@ -867,7 +881,7 @@ bool field::process(procs::MoveCommand& arg) {
                 emplace_process<procs::Move>((PLAYER) infos.turn_player,
                                              index_from(source.first->current.sequence),
                                              destination,
-                                             false,
+                                             !core.turn_engage_count,
                                              procs::reason_data{.reason = REASON::NONE,
                                                                 .reason_player = PLAYER::NONE,
                                                                 .reason_effect = nullptr});
@@ -875,8 +889,10 @@ bool field::process(procs::MoveCommand& arg) {
             }
         case 2:
             {
+                arg.card_to_move->moved_this_turn = true;
                 auto battle = returns.get<bool>();
                 if (battle) {
+                    core.turn_engage_count++;
                     emplace_process<procs::Combat>(
                             (PLAYER) infos.turn_player, index_from(arg.card_to_move->current.sequence), true);
                 }

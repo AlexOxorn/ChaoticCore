@@ -213,17 +213,17 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     loc_info get_location_info() { return {current.controller, current.location, current.sequence, current.position}; };
 
     [[nodiscard]] SUBTYPE get_subtypes() const { return current.subtypes; };
-    [[nodiscard]] int32_t get_energy() const { return current.energy; };
+    [[nodiscard]] int32_t get_energy() const { return data.energy; };
     [[nodiscard]] int32_t damage() const { return current.damage; };
     [[nodiscard]] int16_t get_courage() const { return current.stats.courage; };
     [[nodiscard]] int16_t get_power() const { return current.stats.power; };
     [[nodiscard]] int16_t get_wisdom() const { return current.stats.wisdom; };
     [[nodiscard]] int16_t get_speed() const { return current.stats.speed; };
     [[nodiscard]] disciplines get_stats() const { return {get_courage(), get_power(), get_wisdom(), get_speed()}; }
-    [[nodiscard]] int8_t get_fire() const { return current.elements.fire; };
-    [[nodiscard]] int8_t get_air() const { return current.elements.air; };
-    [[nodiscard]] int8_t get_earth() const { return current.elements.earth; };
-    [[nodiscard]] int8_t get_water() const { return current.elements.water; };
+    [[nodiscard]] int8_t get_fire() const { return data.elements.fire; };
+    [[nodiscard]] int8_t get_air() const { return data.elements.air; };
+    [[nodiscard]] int8_t get_earth() const { return data.elements.earth; };
+    [[nodiscard]] int8_t get_water() const { return data.elements.water; };
     [[nodiscard]] element_values get_elements() const { return {get_fire(), get_air(), get_earth(), get_water()}; }
     [[nodiscard]] int8_t get_mugic_counters() const { return current.mugic_counters; };
     [[nodiscard]] TRIBE get_tribes() const { return current.tribes; };
@@ -242,14 +242,14 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
             status &= ~status_to_toggle;
     }
 
-    void apply_field_effect() { fprintf(stderr, "apply_field_effect unimplemented\n"); };
-    void enable_field_effect(bool enabled = true) { fprintf(stderr, "enable_field_effect unimplemented\n"); };
+    void apply_field_effect() {};
+    void enable_field_effect(bool enabled = true) {};
     LOCATION leave_field_redirect(REASON reason) {
-        fprintf(stderr, "enable_field_effect unimplemented\n");
+        //         fprintf(stderr, "enable_field_effect unimplemented\n");
         return {};
     };
     LOCATION destination_redirect(LOCATION dest, REASON reason) {
-        fprintf(stderr, "destination_redirect unimplemented\n");
+        //         fprintf(stderr, "destination_redirect unimplemented\n");
         return {};
     };
     void cancel_field_effect();
@@ -262,13 +262,13 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     void clear_card_target();
     effect* is_affected_by_effect(EFFECT);
     bool is_affected_by_effect(effect*) { return true; };
-    void filter_effect(EFFECT, effect_list&) { }
+    void filter_effect(EFFECT, effect_list&) {}
 
     std::pair<int32_t, uint8_t> calculate_attack_damage(card* source, card* target);
     static bool card_operation_sort(card* c1, card* c2);
 
     LOCATION grave_for() const {
-        switch(data.supertype) {
+        switch (data.supertype) {
             case SUPERTYPE::CREATURE:
             case SUPERTYPE::BATTLE_GEAR:
             case SUPERTYPE::MUGIC: return LOCATION::GENERAL_DISCARD;

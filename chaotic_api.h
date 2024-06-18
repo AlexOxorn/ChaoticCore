@@ -24,13 +24,14 @@
 #endif
 
 
-CHAOTICAPI int CHAOTIC_CreateDuel(CHAOTIC_Duel* out_ocg_duel, CHAOTIC_DuelOptions options);
-CHAOTICAPI void CHAOTIC_DestroyDuel(CHAOTIC_Duel ocg_duel);
-CHAOTICAPI void CHAOTIC_DuelNewCard(CHAOTIC_Duel ocg_duel, CHAOTIC_NewCardInfo info);
-CHAOTICAPI void CHAOTIC_StartDuel(CHAOTIC_Duel ocg_duel);
+CHAOTICAPI int CHAOTIC_CreateDuel(CHAOTIC_Duel* out_chaotic_duel, CHAOTIC_DuelOptions options);
+CHAOTICAPI void CHAOTIC_DestroyDuel(CHAOTIC_Duel chaotic_duel);
+CHAOTICAPI void CHAOTIC_DuelNewCard(CHAOTIC_Duel chaotic_duel, CHAOTIC_NewCardInfo info);
+CHAOTICAPI void CHAOTIC_StartDuel(CHAOTIC_Duel chaotic_duel);
+CHAOTICAPI void CHAOTIC_PrintBoard(CHAOTIC_Duel chaotic_duel);
 
 CHAOTICAPI int CHAOTIC_DuelProcess(CHAOTIC_Duel chaotic_duel);
-CHAOTICAPI void* CHAOTIC_DuelGetMessage(CHAOTIC_Duel ocg_duel, uint32_t* length);
+CHAOTICAPI void* CHAOTIC_DuelGetMessage(CHAOTIC_Duel chaotic_duel, uint32_t* length);
 CHAOTICAPI void CHAOTIC_DuelSetResponse(CHAOTIC_Duel chaotic_duel, const void* buffer, uint32_t length);
 
 #endif//CHAOTIC_CORE_CHAOTIC_API_H

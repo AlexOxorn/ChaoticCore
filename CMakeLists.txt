@@ -4,7 +4,7 @@ project(chaotic_core)
 set(CMAKE_CXX_STANDARD 20)
 
 #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
 
 function(add_files VAR)
     set(headers ${${VAR}})
