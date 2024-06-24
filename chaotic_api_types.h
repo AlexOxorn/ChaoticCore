@@ -7,7 +7,6 @@
 
 #include <cstdint>
 #include "common.h"
-#include "internal_common.h"
 
 typedef void* CHAOTIC_Duel;
 
@@ -31,20 +30,29 @@ typedef struct CHAOTIC_CardData {
     int loyal;
     int limited;
     int legendary;
-}CHAOTIC_CardData;
+} CHAOTIC_CardData;
+
+typedef union {
+    struct {
+        int32_t seq_horizontal;
+        int32_t seq_vertical;
+        int32_t seq_type;
+    };
+    int32_t seq_index;
+} c_sequence;
 
 typedef struct CHAOTIC_NewCardInfo {
     uint32_t code; // card name
     SUPERTYPE supertype;
     PLAYER controller; // who controls card
-    PLAYER owner; // original owner
+    PLAYER owner;      // original owner
     LOCATION location; // new location
-    sequence_type sequence;
+    c_sequence sequence;
     POSITION position;
-}CHAOTIC_NewCardInfo;
+} CHAOTIC_NewCardInfo;
 
 typedef struct CHAOTIC_Player {
-}CHAOTIC_Player;
+} CHAOTIC_Player;
 
 typedef void (*CHAOTIC_DataReader)(void* payload, uint32_t code, CHAOTIC_CardData* data);
 typedef void (*CHAOTIC_DataReaderDone)(void* payload, CHAOTIC_CardData* data);
@@ -70,6 +78,13 @@ typedef enum CHAOTIC_DuelStatus {
     CHAOTIC_DUEL_STATUS_END,
     CHAOTIC_DUEL_STATUS_AWAITING,
     CHAOTIC_DUEL_STATUS_CONTINUE
-}CHAOTIC_DuelStatus;
+} CHAOTIC_DuelStatus;
+
+typedef struct CHAOTIC_QueryInfo {
+    QUERY_FLAGS flags;
+    PLAYER con;
+    LOCATION loc;
+    c_sequence seq;
+} CHAOTIC_QueryInfo;
 
 #endif // CHAOTIC_CORE_CHAOTC_API_TYPES_H

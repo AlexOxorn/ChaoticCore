@@ -48,6 +48,8 @@ add_library(
         playerop.cpp
         processor.cpp
         protocol_buffers/messages.pb.cc
+        protocol_buffers/common.pb.cc
+        protocol_buffers/query.pb.cc
 )
 
 

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+message CC_coordinate {
+  uint32 horizontal = 1;
+  uint32 vertical = 2;
+  uint32 type = 3;
+}
+
+message CC_sequence {
+  oneof seqtype {
+    uint32 index = 1;
+    CC_coordinate coord = 2;
+  }
+}
+
+message CC_locinfo {
+  uint32 controller = 1;
+  uint32 location = 2;
+  CC_sequence sequence = 3;
+  uint32 position = 4;
+}

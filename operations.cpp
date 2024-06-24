@@ -539,8 +539,6 @@ bool field::process(procs::Move& arg) {
                 // COMBAT CHECK
                 // ============
                 auto board_p = board[destination_index];
-                printf("%d -> %p %p\n", +opp(moving_player), board_p.creatures[0], board_p.creatures[1]);
-                printf("battle => %p\n", board[destination_index].creatures[+opp(moving_player)]);
                 if (board[destination_index].creatures[+opp(moving_player)]) {
                     arg.start_combat = true;
                     return false;
@@ -589,7 +587,6 @@ bool field::process(procs::Move& arg) {
 
                 process_instant_event();
                 process_single_event();
-                printf("START COMBAT 1: %d\n", arg.start_combat);
                 returns.put<bool&>(arg.start_combat);
                 return true;
             }

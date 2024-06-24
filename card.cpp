@@ -5,6 +5,7 @@
 #include "card.h"
 #include "match.h"
 #include "field.h"
+#include "protocol_buffers/query.pb.h"
 #include <cstdio>
 
 bool card_sort::operator()(const card* c1, const card* c2) const {
@@ -17,7 +18,7 @@ card::card(match* pm) : lua_obj_helper(pm) {
 }
 void card::cancel_field_effect() {}
 void card::reset(RESET id, RESET type) {
-//     fprintf(stderr, "card::reset unimplemented\n");
+    //     fprintf(stderr, "card::reset unimplemented\n");
     using enum RESET;
     if (!is(type, EVENT | PHASE | CODE | COPY | CARD))
         return;
@@ -32,18 +33,21 @@ void card::reset(RESET id, RESET type) {
     }
 }
 void card::clear_related_effect() {
-//     fprintf(stderr, "card::clear_related_effect unimplemented\n");
+    //     fprintf(stderr, "card::clear_related_effect unimplemented\n");
 }
 void card::refresh_negated_status() {
-//     fprintf(stderr, "card::refresh_negated_status unimplemented\n");
+    //     fprintf(stderr, "card::refresh_negated_status unimplemented\n");
 }
 void card::equip(card* target, bool send_msg) {
     if (current.equipped_creature)
         return;
-    target->previous.battlegear = nullptr;
+    target->previous.battlegear = target->current.battlegear;
     target->current.battlegear = this;
     previous.equipped_creature = current.equipped_creature;
     current.equipped_creature = target;
+    previous.sequence = current.sequence;
+    current.sequence = target->current.sequence;
+    current.sequence.type = 1;
     // NEGATED CHECK LIST
 }
 void card::unequip() {
@@ -56,10 +60,10 @@ void card::unequip() {
     current.equipped_creature = nullptr;
 }
 void card::clear_card_target() {
-//     fprintf(stderr, "card::clear_card_target unimplemented\n");
+    //     fprintf(stderr, "card::clear_card_target unimplemented\n");
 }
 effect* card::is_affected_by_effect(EFFECT) {
-//     fprintf(stderr, "card::is_affected_by_effect unimplemented\n");
+    //     fprintf(stderr, "card::is_affected_by_effect unimplemented\n");
     return nullptr;
 }
 std::pair<int32_t, uint8_t> card::calculate_attack_damage(card* source, card* target) {
@@ -155,4 +159,72 @@ card_data::card_data(const CHAOTIC_CardData& data) {
         COPY(mugic_ability)
     }
 #undef COPY
+}
+
+// ==================================
+// QUERY FUNCTIONS
+// ==================================
+
+QUERY_CardInfo card::get_infos(QUERY_FLAGS i) {
+#define CHECK_AND_INSERT(QUERY, DEST, SOURCE) \
+    if (is(i, QUERY)) { \
+        response.set_##DEST(SOURCE); \
+    }
+
+    using enum QUERY_FLAGS;
+    auto response = QUERY_CardInfo();
+    CHECK_AND_INSERT(CODE, code, data.code);
+    CHECK_AND_INSERT(FACE_UP, face_up, get_location_info().position == POSITION::FACE_UP);
+    CHECK_AND_INSERT(SUPERTYPE, supertype, +data.supertype);
+    CHECK_AND_INSERT(ORIGINAL_SUBTYPE, original_subtype, +data.subtype);
+    CHECK_AND_INSERT(SUBTYPE, subtype, +get_subtypes());
+    CHECK_AND_INSERT(ORIGINAL_TRIBE, original_tribe, +data.tribe);
+    CHECK_AND_INSERT(TRIBE, tribe, +get_tribes());
+    CHECK_AND_INSERT(CASTABLE_MUGIC, castable_mugic, +get_castable_mugic());
+    CHECK_AND_INSERT(MUGIC_ABILITY, mugic_ability, +data.mugic_ability);
+    CHECK_AND_INSERT(MUGIC, mugic, +get_mugic_counters());
+    CHECK_AND_INSERT(ORIGINAL_ENERGY, original_energy, data.energy);
+    CHECK_AND_INSERT(ENERGY, energy, get_energy());
+    CHECK_AND_INSERT(DAMAGE, damage, get_damage());
+    CHECK_AND_INSERT(ORIGINAL_WISDOM, original_wisdom, data.stats.wisdom);
+    CHECK_AND_INSERT(ORIGINAL_COURAGE, original_courage, data.stats.courage);
+    CHECK_AND_INSERT(ORIGINAL_POWER, original_power, data.stats.power);
+    CHECK_AND_INSERT(ORIGINAL_SPEED, original_speed, data.stats.speed);
+    CHECK_AND_INSERT(OWNER, owner, +owner);
+    CHECK_AND_INSERT(INFECTED, infected, false);
+    CHECK_AND_INSERT(BRAINWASHED, brainwashed, false);
+    CHECK_AND_INSERT(NEGATED, negated, false);
+    CHECK_AND_INSERT(PUBLIC, public_, response.face_up());
+    {
+        auto curr_stats = get_stats();
+        CHECK_AND_INSERT(WISDOM, wisdom, curr_stats.wisdom);
+        CHECK_AND_INSERT(COURAGE, courage, curr_stats.courage);
+        CHECK_AND_INSERT(POWER, power, curr_stats.power);
+        CHECK_AND_INSERT(SPEED, speed, curr_stats.speed);
+    }
+    {
+        auto to_u64 = [](element_values e) {
+            uint64_t res{};
+            for (uint8_t i : e.data) {
+                res <<= 8;
+                res += i;
+            }
+            return res;
+        };
+        CHECK_AND_INSERT(ORIGINAL_ELEMENTS, original_elements, to_u64(data.elements));
+        CHECK_AND_INSERT(ELEMENTS, elements, to_u64(get_elements()));
+    }
+    if (is(i, BATTLEGEAR) && data.supertype == SUPERTYPE::CREATURE && current.battlegear != nullptr) {
+        auto& battle_gear_query = *response.mutable_battlegear();
+        battle_gear_query.set_equipped(true);
+        battle_gear_query.set_face_up(current.battlegear->get_location_info().position == POSITION::FACE_UP);
+        battle_gear_query.set_negated(false);
+        battle_gear_query.set_code(current.battlegear->data.code);
+    }
+    if (is(i, TARGETS)) { /* TODO: EFFECTS */
+    }
+    if (is(i, COUNTERS)) { /* TODO: COUNTER */
+    }
+#undef CHECK_AND_INSERT
+    return response;
 }

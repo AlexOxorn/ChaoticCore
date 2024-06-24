@@ -5,36 +5,10 @@ import chaotic
 import messages_pb2 as msg
 import sqlite3
 import traceback
+from common import *
 from functools import cache
-from enum import Enum
 import re
 from google.protobuf import text_format
-
-
-def BIT(x: int):
-    return 1 << (x - 1)
-
-
-class LOCATION:
-    NONE = 0,
-    ATTACK_DECK = BIT(1)
-    ATTACK_DISCARD = BIT(2)
-    FIELD = BIT(3)
-    MUGIC_HAND = BIT(4)
-    ATTACK_HAND = BIT(5)
-    GENERAL_DISCARD = BIT(6)
-    REMOVED = BIT(7)
-    BURST = BIT(8)
-    ACTIVE_LOCATION = BIT(9)
-    LOCATION_DECK = BIT(10)
-
-
-class SUPERTYPE:
-    CREATURE = 0
-    BATTLE_GEAR = 1
-    MUGIC = 2
-    LOCATION = 3
-    ATTACK = 4
 
 
 def card_reader(conn: sqlite3.Connection, code: int):
@@ -73,8 +47,8 @@ c = sqlite3.connect('../assets/chaoticdata.db')
 # c.set_trace_callback(print)
 
 
-
 code_replace = re.compile(r'code: (\d+)')
+supertype_replace = re.compile(r'supertype: (\d+)')
 
 
 def match_code(matchobj):
@@ -84,13 +58,22 @@ def match_code(matchobj):
     return f'code: "{name1}"'
 
 
+def match_supercode(matchobj):
+    stype = SUPERTYPE(int(matchobj.group(1)))
+    return f'supertype: {repr(stype)
+    }'
+
+
 def print_message(msg, one_line=True):
     base = f"<{type(msg).__name__}({text_format.MessageToString(msg, as_one_line=one_line)})>"
-    print(code_replace.sub(match_code, base))
+    base = code_replace.sub(match_code, base)
+    base = supertype_replace.sub(match_supercode, base)
+    print(base)
 
 
 def replace_str(name):
     return f"lower(replace(replace(replace({name}, ' ', ''), ',', ''), '\'\'', ''))"
+
 
 @cache
 def get_id(name: str):
@@ -154,12 +137,13 @@ def init_cards(core, file: str = "AszilCompostNetdeck.txt", size: int = 3):
             core.new_card(x, SUPERTYPE.ATTACK, 1, 1, LOCATION.ATTACK_DECK, 0, 2)
 
 
+TestQuery = (QUERY_FLAGS.CODE | QUERY_FLAGS.SUPERTYPE | QUERY_FLAGS.TRIBE | QUERY_FLAGS.MUGIC_ABILITY |
+             QUERY_FLAGS.ENERGY | QUERY_FLAGS.DAMAGE | QUERY_FLAGS.ELEMENTS | QUERY_FLAGS.BATTLEGEAR)
+
+
 def main():
     try:
         with chaotic.Chaotic(int(time.time()), 3, cardReader=card_reader, cardReaderPayload=c) as core:
-            print(sys.getrefcount(core))
-            print(sys.getrefcount(card_reader))
-            print(sys.getrefcount(c))
             init_cards(core)
             core.start_duel()
 
@@ -177,16 +161,35 @@ def main():
                 for m in msgs[0:-1]:
                     print_message(m)
                 prompt = prompt if isinstance(msgs[-1], msg.MSG_Retry) else msgs[-1]
-                print_message(prompt, False)
-                core.print_board()
-                player = prompt.player
-                if player == 0:
-                    print("\033[31m", end='Player 0 Select => ')
-                else:
-                    print("\033[34m", end='Player 1 Select => ')
-                x = input()
-                core.respond(*map(int, x.split()))
-                print("\033[0m")
+                while True:
+                    print("\033[0m")
+                    print_message(prompt, False)
+                    core.print_board()
+                    player = prompt.player
+                    if player == 0:
+                        print("\033[31m", end='Player 0 Select => ')
+                    else:
+                        print("\033[34m", end='Player 1 Select => ')
+                    x = input()
+                    match x.split():
+                        case ['q', con, loc, *seq]:
+                            if len(seq) > 1:
+                                print_message(core.query(TestQuery, int(con), int(loc), tuple(map(int, seq))), False)
+                            elif len(seq) == 0:
+                                print_message(core.query(TestQuery, int(con), int(loc), int(seq[0])), False)
+                        case ['ql', con, loc]:
+                            print_message(core.query_location(TestQuery, int(con), int(loc)), False)
+                        case ['qc', con, loc]:
+                            x = core.query_count(int(con), int(loc))
+                            print(x)
+                        case ['qf']:
+                            print_message(core.query_field(), False)
+                        case [*data]:
+                            core.respond(*map(int, data))
+                            print("\033[0m")
+                            break
+
+
     except KeyboardInterrupt:
         print("BYE")
     except Exception as e:

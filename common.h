@@ -130,13 +130,13 @@ long BIT(long a) {
 
 ENUM PLAYER : uint8_t{ONE, TWO, NONE, ALL};
 
-template<enum_class T, typename ... ARGS>
-constexpr inline bool any_of(T val, ARGS... flag) requires (std::is_same_v<T, ARGS> && ...) {
+template <enum_class T, typename... ARGS>
+constexpr inline bool any_of(T val, ARGS... flag)
+    requires(std::is_same_v<T, ARGS> && ...)
+{
     return ((val == flag) || ...);
     return false;
 }
-
-
 
 inline PLAYER opp(PLAYER playerid) {
     switch (playerid) {
@@ -158,6 +158,7 @@ ENUM LOCATION : uint32_t{
                         BURST = BIT(8),
                         ACTIVE_LOCATION = BIT(9),
                         LOCATION_DECK = BIT(10),
+
                         GLOBAL = FIELD | GENERAL_DISCARD | LOCATION_DECK,
                         HAND = ATTACK_HAND | MUGIC_HAND,
                         DECK = ATTACK_DECK | LOCATION_DECK,
@@ -169,9 +170,7 @@ ENUM LOCATION : uint32_t{
                         SHUFFLE_LOCATION_DECK = LOCATION_DECK | BIT(18),
                 };
 
-ENUM STATUS {
-        DESTROY_CONFIRMED = BIT(1)
-};
+ENUM STATUS{DESTROY_CONFIRMED = BIT(1)};
 
 ENUM POSITION : uint8_t{
                         NONE = 0,
@@ -268,9 +267,40 @@ ENUM RESET : uint32_t{
                      CHAIN = BIT(32),
              };
 
+ENUM QUERY_FLAGS : uint64_t{CODE = BIT(1),
+                            FACE_UP = BIT(2),
+                            SUPERTYPE = BIT(3),
+                            ORIGINAL_SUBTYPE = BIT(4),
+                            SUBTYPE = BIT(5),
+                            ORIGINAL_TRIBE = BIT(6),
+                            TRIBE = BIT(7),
+                            MUGIC_ABILITY = BIT(8),
+                            MUGIC = BIT(9),
+                            ORIGINAL_ENERGY = BIT(10),
+                            ENERGY = BIT(11),
+                            DAMAGE = BIT(12),
+                            ORIGINAL_WISDOM = BIT(13),
+                            WISDOM = BIT(14),
+                            ORIGINAL_COURAGE = BIT(15),
+                            COURAGE = BIT(16),
+                            ORIGINAL_POWER = BIT(17),
+                            POWER = BIT(18),
+                            ORIGINAL_SPEED = BIT(19),
+                            SPEED = BIT(20),
+                            ORIGINAL_ELEMENTS = BIT(21),
+                            ELEMENTS = BIT(22),
+                            BATTLEGEAR = BIT(23),
+                            TARGETS = BIT(24),
+                            COUNTERS = BIT(25),
+                            OWNER = BIT(26),
+                            INFECTED = BIT(27),
+                            BRAINWASHED = BIT(28),
+                            NEGATED = BIT(29),
+                            PUBLIC = BIT(30),
+                            CASTABLE_MUGIC = BIT(31)};
+
 #define DECK_TOP     0
 #define DECK_BOTTOM  1
 #define DECK_SHUFFLE 2
-
 
 #endif // CHAOTIC_CORE_COMMON_H

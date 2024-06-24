@@ -28,7 +28,7 @@ class effect;
 using effect_function = void(effect*, PLAYER player_id, card_set* event_group, PLAYER event_player, int32_t event_value,
                              effect* reason_effect, REASON reason, PLAYER reason_player);
 
-class effect : public lua_obj_helper<PARAM_TYPE_EFFECT> {
+struct effect : public lua_obj_helper<PARAM_TYPE_EFFECT> {
     card* owner{nullptr};
     card* handler{nullptr};
     int8_t effect_owner{-1};

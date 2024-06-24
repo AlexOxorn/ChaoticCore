@@ -6,6 +6,7 @@
 #include "../common.h"
 #include "../chaotic_api_types.h"
 #include "../chaotic_api.h"
+#include <optional>
 #include <vector>
 
 void decref(void* f) {
@@ -22,9 +23,10 @@ struct ChaoticGame {
     PyObject* payloads[4];
 };
 
-static PyObject* ProtoBufFile;
+static PyObject* ProtoBufFile[2] = {};
 
 static PyObject* messageTypes[100] = {};
+static PyObject* queryTypes[5] = {};
 
 static void destruct(ChaoticGame* self) {
     for (auto& p : self->payloads) {
@@ -35,6 +37,35 @@ static void destruct(ChaoticGame* self) {
         CHAOTIC_DestroyDuel(self->duel);
         self->duel = nullptr;
     }
+}
+static c_sequence extract_sequence(PyObject* py_sequence) {
+    c_sequence sequence{};
+
+    if (py_sequence == nullptr) {
+        return sequence;
+    }
+    if (Py_TYPE(py_sequence) == &PyLong_Type) {
+        sequence.seq_index = (int) PyLong_AsLong(py_sequence);
+    } else if (Py_TYPE(py_sequence) == &PyTuple_Type) {
+        PyArg_ParseTuple(py_sequence, "ii|i", &sequence.seq_horizontal, &sequence.seq_vertical, &sequence.seq_type);
+    }
+    printf("\n");
+
+    return sequence;
+}
+
+static std::optional<CHAOTIC_QueryInfo> parse_query_info(PyObject* args, PyObject* kwargs) {
+    static const char* kwlist[] = {"queries", "player", "location", "sequence", nullptr};
+    QUERY_FLAGS queries;
+    int player, location;
+    PyObject* py_sequence = nullptr;
+    if (!PyArg_ParseTupleAndKeywords(
+                args, kwargs, "kii|O", const_cast<char**>(kwlist), &queries, &player, &location, &py_sequence)) {
+        printf("Bad Argument\n");
+        return std::nullopt;
+    }
+    return CHAOTIC_QueryInfo{
+            .flags = queries, .con = PLAYER(player), .loc = LOCATION(location), .seq = extract_sequence(py_sequence)};
 }
 
 static void ChaoticGame_dealloc(ChaoticGame* self) {
@@ -115,7 +146,7 @@ static int ChaoticGame_init(ChaoticGame* self, PyObject* args, PyObject* kwds) {
             PyObject* result = PyObject_CallObject(func, arglist);
             Py_DecRef(arglist);
             if (result == nullptr) {
-//                 fprintf(stderr, "CARD READER FAILED WITH EXCEPTION:\n");
+                //                 fprintf(stderr, "CARD READER FAILED WITH EXCEPTION:\n");
                 PyErr_Print();
                 return;
             }
@@ -166,7 +197,6 @@ static PyObject* ChaoticGame_new_card(ChaoticGame* self, PyObject* args, PyObjec
             "code", "supertype", "controller", "owner", "location", "sequence", "position", nullptr};
     int code, supertype, controller, owner, location, position;
     PyObject* py_sequence;
-    sequence_type c_sequence{0};
     if (!PyArg_ParseTupleAndKeywords(args,
                                      kwds,
                                      "iiiiiOi",
@@ -182,18 +212,12 @@ static PyObject* ChaoticGame_new_card(ChaoticGame* self, PyObject* args, PyObjec
         return nullptr;
     }
 
-    if (Py_TYPE(py_sequence) == &PyLong_Type) {
-        c_sequence.index = PyLong_AsLong(py_sequence);
-    } else if (Py_TYPE(py_sequence) == &PyTuple_Type) {
-        PyArg_ParseTuple(py_sequence, "ii", &c_sequence.horizontal, &c_sequence.vertical);
-    }
-
     CHAOTIC_NewCardInfo card_info{static_cast<uint32_t>(code),
                                   static_cast<SUPERTYPE>(supertype),
                                   static_cast<PLAYER>(controller),
                                   static_cast<PLAYER>(owner),
                                   static_cast<LOCATION>(location),
-                                  c_sequence,
+                                  extract_sequence(py_sequence),
                                   static_cast<POSITION>(position)};
 
     CHAOTIC_DuelNewCard(self->duel, card_info);
@@ -293,6 +317,61 @@ static PyObject* CHAOTIC_print_board(ChaoticGame* self, PyObject* args) {
     return Py_None;
 }
 
+static PyObject* CHAOTIC_query_count(ChaoticGame* self, PyObject* args, PyObject* kwargs) {
+    static const char* kwlist[] = {"player", "location", nullptr};
+    int player, location;
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ii", const_cast<char**>(kwlist), &player, &location)) {
+        printf("Bad Argument\n");
+        return nullptr;
+    }
+    return PyLong_FromLong(CHAOTIC_DuelQueryCount(self->duel, (PLAYER) player, (LOCATION) location));
+}
+
+static PyObject* query_base(ChaoticGame* self, PyObject* args, PyObject* kwargs, int response_type,
+                            void* (*api_func)(CHAOTIC_Duel, uint32_t*, CHAOTIC_QueryInfo)) {
+    uint32_t length = 0;
+
+    auto arguments = parse_query_info(args, kwargs);
+    if (!arguments) {
+        printf("Bad Argument\n");
+        return nullptr;
+    }
+    auto* data = static_cast<const char*>(api_func(self->duel, &length, *arguments));
+
+    PyObject* pyQueryType = queryTypes[response_type];
+    PyObject* pyQuery = PyObject_CallObject(pyQueryType, nullptr);
+    PyObject* str = length ? PyBytes_FromStringAndSize(data, length) : PyBytes_FromString("");
+    PyObject* method_name = PyUnicode_FromString("ParseFromString");
+    PyObject_CallMethodOneArg(pyQuery, method_name, str);
+
+    Py_DecRef(str);
+    Py_DecRef(method_name);
+    return pyQuery;
+}
+
+static PyObject* CHAOTIC_query(ChaoticGame* self, PyObject* args, PyObject* kwargs) {
+    return query_base(self, args, kwargs, 0, CHAOTIC_DuelQuery);
+}
+
+static PyObject* CHAOTIC_query_location(ChaoticGame* self, PyObject* args, PyObject* kwargs) {
+    return query_base(self, args, kwargs, 1, CHAOTIC_DuelQueryLocation);
+}
+
+static PyObject* CHAOTIC_query_field(ChaoticGame* self, PyObject*) {
+    uint32_t length;
+    auto* data = static_cast<const char*>(CHAOTIC_DuelQueryField(self->duel, &length));
+
+    PyObject* pyQueryType = queryTypes[2];
+    PyObject* pyQuery = PyObject_CallObject(pyQueryType, nullptr);
+    PyObject* str = length ? PyBytes_FromStringAndSize(data, length) : PyBytes_FromString("");
+    PyObject* method_name = PyUnicode_FromString("ParseFromString");
+    PyObject_CallMethodOneArg(pyQuery, method_name, str);
+
+    Py_DecRef(str);
+    Py_DecRef(method_name);
+    return pyQuery;
+}
+
 static PyObject* CHAOTIC_enter(ChaoticGame* self, PyObject*) {
     return (PyObject*) self;
 }
@@ -308,42 +387,30 @@ static PyMethodDef ChaoticGame_methods[] = {
          "new_card", (PyCFunction) ChaoticGame_new_card,
          METH_VARARGS | METH_KEYWORDS,
          "Adds a card to the game\nArgs: (code, supertype, controller, owner, location, sequence, position)", },
-        {
-         "start_duel", (PyCFunction) ChaoticGame_start_duel,
-         METH_VARARGS, "Start the Game",
-         },
-        {
-         "process", (PyCFunction) ChaoticGame_duel_process,
-         METH_VARARGS, "Processes until messages",
-         },
-        {
-         "messages", (PyCFunction) ChaoticGame_get_message,
-         METH_VARARGS, "Get current messages",
-         },
-        {
-         "message_group", (PyCFunction) ChaoticGame_get_message_group,
-         METH_VARARGS, "loop and process until a response is needed",
-         },
-        {
-         "respond", (PyCFunction) CHAOTIC_set_response,
-         METH_VARARGS, "Set a game response",
-         },
-        {
-         "respond_and_get", (PyCFunction) CHAOTIC_respond_and_get,
-         METH_VARARGS, "Respond to the game, and get the next set of messages",
-         },
-        {
-         "print_board", (PyCFunction) CHAOTIC_print_board,
-         METH_VARARGS, "Print A minimal board",
-         },
-        {
-         "__enter__", (PyCFunction) CHAOTIC_enter,
-         METH_VARARGS, "",
-         },
-        {
-         "__exit__", (PyCFunction) CHAOTIC_exit,
-         METH_VARARGS, "",
-         },
+        {"start_duel", (PyCFunction) ChaoticGame_start_duel, METH_VARARGS, "Start the Game"},
+        {"process", (PyCFunction) ChaoticGame_duel_process, METH_VARARGS, "Processes until messages"},
+        {"messages", (PyCFunction) ChaoticGame_get_message, METH_VARARGS, "Get current messages"},
+        {"message_group",
+         (PyCFunction) ChaoticGame_get_message_group,
+         METH_VARARGS, "loop and process until a response is needed"},
+        {"respond", (PyCFunction) CHAOTIC_set_response, METH_VARARGS, "Set a game response"},
+        {"respond_and_get",
+         (PyCFunction) CHAOTIC_respond_and_get,
+         METH_VARARGS, "Respond to the game, and get the next set of messages"},
+        {"print_board", (PyCFunction) CHAOTIC_print_board, METH_VARARGS, "Print A minimal board"},
+        {"query_count",
+         (PyCFunction) CHAOTIC_query_count,
+         METH_VARARGS | METH_KEYWORDS, "Query Count of how many cards are in a location"},
+        {"query", (PyCFunction) CHAOTIC_query, METH_VARARGS | METH_KEYWORDS, "Query Data about a card in the game"},
+        {"query_location",
+         (PyCFunction) CHAOTIC_query_location,
+         METH_VARARGS | METH_KEYWORDS,
+         "Query Data about all card in a given location"},
+        {"query_field",
+         (PyCFunction) CHAOTIC_query_field,
+         METH_VARARGS, "Get Basic info about the state of the game board"},
+        {"__enter__", (PyCFunction) CHAOTIC_enter, METH_VARARGS, ""},
+        {"__exit__", (PyCFunction) CHAOTIC_exit, METH_VARARGS, ""},
         {nullptr}  /* Sentinel */
 };
 
@@ -389,7 +456,8 @@ static PyTypeObject ChaoticGame_Type = {
 };
 
 static void init_messages() {
-#define SET_MESSAGE(name) messageTypes[x++] = (PyObject_GetAttrString(ProtoBufFile, #name));
+#define SET_MESSAGE(name) messageTypes[x++] = (PyObject_GetAttrString(ProtoBufFile[0], #name));
+#define SET_QUERY(name)   queryTypes[x++] = (PyObject_GetAttrString(ProtoBufFile[1], #name));
     int x = 0;
     SET_MESSAGE(MSG_ShuffleAttackDeck)
     SET_MESSAGE(MSG_ShuffleLocationDeck)
@@ -410,7 +478,13 @@ static void init_messages() {
     SET_MESSAGE(MSG_StrikerChange)
     SET_MESSAGE(MSG_CombatEnd)
     SET_MESSAGE(MSG_Recover)
+
+    x = 0;
+    SET_QUERY(QUERY_CardInfo)
+    SET_QUERY(QUERY_CardList)
+    SET_QUERY(QUERY_FieldData)
 #undef SET_MESSAGE
+#undef SET_QUERY
 }
 
 static struct PyModuleDef chaotic = {PyModuleDef_HEAD_INIT, "chaotic", "__doc__", -1};
@@ -421,7 +495,8 @@ PyMODINIT_FUNC PyInit_chaotic() {
 
     Py_IncRef(reinterpret_cast<PyObject*>(&ChaoticGame_Type));
     PyModule_AddObject(m, "Chaotic", (PyObject*) &ChaoticGame_Type);
-    ProtoBufFile = PyImport_ImportModule("messages_pb2");
+    ProtoBufFile[0] = PyImport_ImportModule("messages_pb2");
+    ProtoBufFile[1] = PyImport_ImportModule("query_pb2");
     init_messages();
     return m;
 }

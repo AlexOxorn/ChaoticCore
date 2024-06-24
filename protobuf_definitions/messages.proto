@@ -1,23 +1,5 @@
 syntax = "proto3";
-
-message MSG_coordinate {
-  uint32 horizontal = 1;
-  uint32 vertical = 2;
-}
-
-message MSG_sequence {
-  oneof seqtype {
-    uint32 index = 1;
-    MSG_coordinate coord = 2;
-  }
-}
-
-message MSG_locinfo {
-  uint32 controller = 1;
-  uint32 location = 2;
-  MSG_sequence sequence = 3;
-  uint32 position = 4;
-}
+import "common.proto";
 
 message MSG_ShuffleAttackDeck {
   int32 playerid = 1;
@@ -38,8 +20,8 @@ message MSG_ShuffleMugicHand {
 
 message MSG_Move {
   uint32 code = 1;
-  MSG_locinfo previous_location = 2;
-  MSG_locinfo new_location = 3;
+  CC_locinfo previous_location = 2;
+  CC_locinfo new_location = 3;
   uint32 reason = 4;
 }
 
@@ -60,13 +42,13 @@ message MSG_NewPhase {
 message MSG_ActivateLocation {
   uint32 player = 1;
   uint32  code = 2;
-  MSG_locinfo previous_location = 3;
+  CC_locinfo previous_location = 3;
 }
 
 message MSG_move_options {
   uint32 code = 1;
-  MSG_coordinate source = 2;
-  repeated MSG_coordinate destinations = 3;
+  CC_coordinate source = 2;
+  repeated CC_coordinate destinations = 3;
 }
 
 message MSG_SelectMove {
@@ -79,8 +61,8 @@ message MSG_Retry {}
 
 message MSG_CreatureMove {
   uint32 code = 1;
-  MSG_locinfo previous_location = 2;
-  MSG_locinfo new_location = 3;
+  CC_locinfo previous_location = 2;
+  CC_locinfo new_location = 3;
   uint32 combat = 4;
 }
 
@@ -88,7 +70,7 @@ message MSG_CombatStart {
   uint32 playerid = 1;
   uint32 code1 = 2;
   uint32 code2 = 3;
-  MSG_coordinate battle_location = 4;
+  CC_coordinate battle_location = 4;
 }
 
 message MSG_SelectAttackCard {
@@ -103,14 +85,14 @@ message MSG_SelectAttackCard {
 
 message MSG_Damage {
   uint32 code = 1;
-  MSG_locinfo loc_info = 2;
+  CC_locinfo loc_info = 2;
   uint32 amount = 3;
   uint32 reason = 4;
 }
 
 message MSG_Recover {
   uint32 code = 1;
-  MSG_locinfo loc_info = 2;
+  CC_locinfo loc_info = 2;
   uint32 amount = 3;
   uint32 reason = 4;
 }

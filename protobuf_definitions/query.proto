@@ -1,0 +1,116 @@
+syntax = "proto3";
+import "common.proto";
+
+message QUERY_CardInfo {
+  uint32 code = 1;
+  bool face_up = 2;
+  int32 supertype = 3;
+
+  int64 original_subtype = 5;
+  int64 subtype = 6;
+
+  int32 original_tribe = 7;
+  int32 tribe = 8;
+
+  int32 mugic_ability = 9;
+  int32 mugic = 10;
+
+  int32 original_energy = 11;
+  int32 energy = 12;
+  int32 damage = 13;
+
+  int32 original_wisdom = 14;
+  int32 wisdom = 15;
+
+  int32 original_courage = 16;
+  int32 courage = 17;
+
+  int32 original_power = 18;
+  int32 power = 19;
+
+  int32 original_speed = 20;
+  int32 speed = 21;
+
+  uint64 original_elements = 22;
+  uint64 elements = 23;
+
+  message BattleGear {
+    bool equipped = 1;
+    bool face_up = 2;
+    bool negated = 3;
+    uint32 code = 4;
+  }
+
+  BattleGear battlegear = 24;
+  repeated CC_locinfo targets = 25;
+
+  message Counter {
+    int32 type = 1;
+    int32 count = 2;
+  }
+  repeated Counter counters = 26;
+
+  int32 owner = 27;
+  bool infected = 28;
+  bool brainwashed = 29;
+  bool negated = 30;
+  bool public = 31;
+
+  uint32 castable_mugic = 32;
+}
+
+message QUERY_CardList {
+  message SpaceData {
+    CC_coordinate coordinate = 1;
+    QUERY_CardInfo player1_creature = 2;
+    QUERY_CardInfo player2_creature = 3;
+    QUERY_CardInfo mirage = 6;
+  }
+  message SpaceList {
+    repeated SpaceData spaces = 1;
+  }
+  message CardList {
+    repeated QUERY_CardInfo cards = 1;
+  }
+  oneof list {
+    SpaceList spaces = 1;
+    CardList cards = 2;
+  }
+}
+
+message QUERY_FieldData {
+  message SpaceData {
+    CC_coordinate coordinate = 1;
+    bool player1_creature = 2;
+    bool player2_creature = 3;
+    int32 player1_battlegear = 4;
+    int32 player2_battlegear = 5;
+    bool mirage = 6;
+  }
+
+  message PlayerData {
+    int32 attack_hand_size = 1;
+    int32 mugic_hand_size = 2;
+    int32 attack_deck_size = 3;
+    int32 location_deck_size = 4;
+    int32 attack_grave_size = 5;
+    int32 general_grave_size = 6;
+    int32 removed_size = 7;
+  }
+
+  message BurstData {
+    int32 handler_code = 1;
+    CC_locinfo handler_loc = 2;
+    int32 triggering_player = 3;
+    int32 triggering_location = 4;
+    int32 triggering_sequence = 5;
+    uint64 description = 6;
+  }
+
+  uint32 options = 1;
+  repeated SpaceData field = 2;
+  PlayerData player1_counts = 3;
+  PlayerData player2_counts = 4;
+  int32 current_bust = 5;
+  repeated BurstData burst = 6;
+}

@@ -304,15 +304,17 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
             }
         case LOCATION::FIELD:
             {
-                uint32_t index = sequence.vertical * board_size * 2 + sequence.horizontal;
+                uint32_t index = index_from(sequence);
                 battle_board_location& new_pos = board[index];
                 switch (pcard->data.supertype) {
                     case SUPERTYPE::CREATURE:
                         {
                             new_pos.creatures[+controller] = pcard;
                             pcard->current.sequence = sequence;
+                            pcard->current.sequence.type = 0;
                             if (pcard->current.battlegear) {
                                 pcard->current.battlegear->current.sequence = sequence;
+                                pcard->current.battlegear->current.sequence.type = 1;
                             }
                             break;
                         }
@@ -320,13 +322,13 @@ void field::add_card(PLAYER controller, card* pcard, LOCATION location, sequence
                         {
                             new_pos.mirage = pcard;
                             pcard->current.sequence = sequence;
+                            pcard->current.sequence.type = 2;
                             break;
                         }
                     case SUPERTYPE::BATTLE_GEAR:
                         {
                             if (card* creature = new_pos.creatures[+controller]; creature) {
                                 pcard->equip(creature, false);
-                                pcard->current.sequence = sequence;
                             }
                         }
                     default: break;
@@ -389,7 +391,7 @@ void field::reveal_location(PLAYER playerid, effect* reason_effect, REASON reaso
 void field::set_mirage(card* pcard, effect* reason_effect, REASON reason, PLAYER reason_player) {}
 
 int32_t field::is_player_can_draw(uint8_t playerid) {
-//     fprintf(stderr, "is_player_can_draw unimplemented");
+    //     fprintf(stderr, "is_player_can_draw unimplemented");
     return true;
 }
 
@@ -520,4 +522,47 @@ card_set field::get_all_field_card() const {
             to_ret.insert(pcard);
     }
     return to_ret;
+}
+
+// =======================================================
+// QUERY FUNCTIONS
+// =======================================================
+
+card* field::get_field_card(PLAYER playerid, LOCATION location, sequence_type sequence) const {
+    auto vector_search = [sequence](const card_vector& vec) -> card* {
+        if (sequence < vec.size())
+            return vec[sequence];
+        return nullptr;
+    };
+
+    if (is(location, LOCATION::FIELD)) {
+        auto pos = board[index_from(sequence)];
+        if (sequence.type == 1) {
+            return pos.creatures[+playerid] ? pos.creatures[+playerid]->current.battlegear : nullptr;
+        }
+        if (sequence.type == 2) {
+            return pos.mirage;
+        }
+        return pos.creatures[+playerid];
+    }
+
+    switch (location) {
+        case LOCATION::ACTIVE_LOCATION: return active_location;
+        case LOCATION::ATTACK_DECK: return vector_search(player[+playerid].attack_deck);
+        case LOCATION::LOCATION_DECK: return vector_search(player[+playerid].location_deck);
+        case LOCATION::MUGIC_HAND: return vector_search(player[+playerid].mugic_hand);
+        case LOCATION::ATTACK_HAND: return vector_search(player[+playerid].attack_hand);
+        case LOCATION::ATTACK_DISCARD: return vector_search(player[+playerid].attack_grave);
+        case LOCATION::GENERAL_DISCARD: return vector_search(player[+playerid].general_grave);
+        case LOCATION::REMOVED: return vector_search(player[+playerid].removed);
+        case LOCATION::BURST:
+            {
+                if (sequence < core.current_burst.size()) {
+                    auto x = core.current_burst[sequence];
+                    return x.triggering_effect->handler;
+                }
+                return nullptr;
+            }
+        default: return nullptr;
+    }
 }

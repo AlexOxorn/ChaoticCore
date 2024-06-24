@@ -426,6 +426,11 @@ public:
     std::vector<int32_t> adjacent(int32_t old_index);
 
     [[nodiscard]] card_set get_all_field_card() const;
+
+    // =====================================
+    // QUERY FIELDS
+    // =====================================
+    [[nodiscard]] card* get_field_card(PLAYER playerid, LOCATION location, sequence_type sequence) const;
 };
 
 #endif // CHAOTIC_CORE_FIELD_H

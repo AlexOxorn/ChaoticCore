@@ -75,7 +75,7 @@ bool field::process(procs::Adjust& arg) {
 
                     FOR_PLAYER_ID(i)
                     if (card* pcard = pos.creatures[i]; pcard) {
-                        if (pcard->damage() >= pcard->get_energy()) {
+                        if (pcard->get_damage() >= pcard->get_energy()) {
                             to_destroy.insert(pcard);
                         }
                     }

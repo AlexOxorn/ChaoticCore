@@ -26,6 +26,7 @@ struct sequence_type {
         struct {
             int32_t horizontal;
             int32_t vertical;
+            int32_t type;
         };
         int32_t index;
     };
@@ -36,6 +37,12 @@ struct sequence_type {
     bool operator==(const sequence_type& other) const {
         return (horizontal == other.horizontal && vertical == other.vertical) or (index == other.index);
     };
+    operator int() const {
+        return index;
+    }
+    operator std::pair<int, int>() const {
+        return {horizontal, vertical};
+    }
 
     std::pair<uint32_t, uint32_t> as_pair() { return {horizontal, vertical}; }
     template <size_t I>
@@ -62,13 +69,13 @@ struct loc_info {
     POSITION position;
 };
 
-class MSG_locinfo;
-class MSG_sequence;
-class MSG_coordinate;
+class CC_locinfo;
+class CC_sequence;
+class CC_coordinate;
 
-void write_location_info(MSG_locinfo* msg, loc_info info);
-void write_sequence_info(MSG_sequence* msg, sequence_type seq, LOCATION loc);
-void write_coord_info(MSG_coordinate* msg, sequence_type seq);
+void write_location_info(CC_locinfo* msg, loc_info info);
+void write_sequence_info(CC_sequence* msg, sequence_type seq, LOCATION loc);
+void write_coord_info(CC_coordinate* msg, sequence_type seq);
 
 struct burst;
 class card;
@@ -92,8 +99,8 @@ using effect_list = std::vector<effect*>;
       })())
   #define COALESCE(T, F) (T ? T : F)
 #else
-  #define COALESCE(T, F)      (T ?: F)
-  #define COALESCE_SAFE(T, F) (T ?: F)
+  #define COALESCE(T, F)      ((T) ?: F)
+  #define COALESCE_SAFE(T, F) ((T) ?: F)
 #endif
 
 struct card_sort {

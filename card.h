@@ -165,6 +165,7 @@ struct card_state {
 struct card_sort;
 struct effect;
 
+class QUERY_CardInfo;
 struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
     using counter_map = std::map<uint16_t, std::array<uint16_t, 2>>;
     using effect_container = std::multimap<uint32_t, effect*>;
@@ -214,7 +215,7 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
 
     [[nodiscard]] SUBTYPE get_subtypes() const { return current.subtypes; };
     [[nodiscard]] int32_t get_energy() const { return data.energy; };
-    [[nodiscard]] int32_t damage() const { return current.damage; };
+    [[nodiscard]] int32_t get_damage() const { return current.damage; };
     [[nodiscard]] int16_t get_courage() const { return current.stats.courage; };
     [[nodiscard]] int16_t get_power() const { return current.stats.power; };
     [[nodiscard]] int16_t get_wisdom() const { return current.stats.wisdom; };
@@ -276,6 +277,12 @@ struct card : public lua_obj_helper<PARAM_TYPE_CARD> {
             default: return LOCATION::NONE;
         }
     }
+
+
+    // ==================================
+    // QUERY FUNCTIONS
+    // ==================================
+    [[nodiscard]] QUERY_CardInfo get_infos(QUERY_FLAGS i);
 };
 
 #endif // CHAOTIC_CORE_CARD_H

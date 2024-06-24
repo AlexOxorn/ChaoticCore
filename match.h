@@ -91,7 +91,6 @@ public:
         return pgroup;
     }
     void delete_group(group* targets) {
-        printf("targets to delete %p %d\n", targets, groups.contains(targets));
         groups.erase(targets);
         delete targets;
     }
