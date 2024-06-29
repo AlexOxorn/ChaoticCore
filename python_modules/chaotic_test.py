@@ -9,6 +9,8 @@ from common import *
 from functools import cache
 import re
 from google.protobuf import text_format
+from google.protobuf.message import Message
+from typing import Tuple
 
 
 def card_reader(conn: sqlite3.Connection, code: int):
@@ -35,7 +37,7 @@ def card_reader(conn: sqlite3.Connection, code: int):
                legendary
         FROM   cards
         WHERE  id = ?""", (code,))
-    data = tuple(x or 0 for x in curr.fetchone())
+    data: Tuple[int, ...] = tuple(x or 0 for x in curr.fetchone())
     # formatted_data = dict(zip(map(lambda a: a[0], curr.description), data))
     # from pprint import pprint
     # pprint(formatted_data)
@@ -64,8 +66,8 @@ def match_supercode(matchobj):
     }'
 
 
-def print_message(msg, one_line=True):
-    base = f"<{type(msg).__name__}({text_format.MessageToString(msg, as_one_line=one_line)})>"
+def print_message(to_print: Message, one_line=True):
+    base = f"<{type(to_print).__name__}({text_format.MessageToString(to_print, as_one_line=one_line)})>"
     base = code_replace.sub(match_code, base)
     base = supertype_replace.sub(match_supercode, base)
     print(base)
@@ -107,7 +109,7 @@ def triangle(size: int):
     return int(size * (size + 1) / 2)
 
 
-def init_cards(core, file: str = "AszilCompostNetdeck.txt", size: int = 3):
+def init_cards(core: chaotic.Chaotic, file: str = "AszilCompostNetdeck.txt", size: int = 3):
     with open(f"../assets/{file}") as deck_:
         deck = map(str.strip, deck_)
         assert (next(deck) == 'creatures')
@@ -173,7 +175,7 @@ def main():
                     x = input()
                     match x.split():
                         case ['q', con, loc, *seq]:
-                            if len(seq) > 1:
+                            if 3 >= len(seq) > 1:
                                 print_message(core.query(TestQuery, int(con), int(loc), tuple(map(int, seq))), False)
                             elif len(seq) == 0:
                                 print_message(core.query(TestQuery, int(con), int(loc), int(seq[0])), False)
@@ -188,8 +190,6 @@ def main():
                             core.respond(*map(int, data))
                             print("\033[0m")
                             break
-
-
     except KeyboardInterrupt:
         print("BYE")
     except Exception as e:
